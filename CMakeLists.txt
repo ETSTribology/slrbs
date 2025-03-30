@@ -110,7 +110,7 @@ add_executable (slrbs main.cpp
           ${collision_HEADERS} ${collision_SOURCE}
           ${rigidbody_HEADERS} ${rigidbody_SOURCE}
           ${solver_HEADERS} ${solver_SOURCE}
-		  ${util_HEADERS} ${util_SOURCE}
+		  ${utils_HEADERS} ${utils_SOURCE}
           ${viewer_HEADERS} ${viewer_SOURCE} )
 
 include_directories(
