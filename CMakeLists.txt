@@ -15,7 +15,7 @@ include(FetchContent)
 FetchContent_Declare(
   polyscope
   GIT_REPOSITORY https://github.com/nmwsharp/polyscope.git
-  GIT_TAG v2.2.1
+  GIT_TAG v2.3.0  # Upgraded from v2.2.1
   GIT_PROGRESS TRUE
 )
 FetchContent_MakeAvailable(polyscope)
@@ -63,11 +63,11 @@ set(solver_SOURCE src/solvers/SolverBoxPGS.cpp
 				  src/solvers/SolverConjGradient.cpp
 	              src/solvers/SolverConjResidual.cpp)
 
-set(util_HEADERS include/util/OBJLoader.h
-                 include/util/MeshAssets.h
-				 include/util/Types.h )
-set(util_SOURCE src/util/OBJLoader.cpp
-                src/util/MeshAssets.cpp )
+set(utils_HEADERS include/utils/OBJLoader.h
+                 include/utils/MeshAssets.h
+				 include/utils/Types.h )
+set(utils_SOURCE src/utils/OBJLoader.cpp
+                src/utils/MeshAssets.cpp )
 
 set(viewer_HEADERS include/viewer/SimViewer.h)
 set(viewer_SOURCE src/viewer/SimViewer.cpp)
