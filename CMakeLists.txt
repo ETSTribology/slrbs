@@ -7,6 +7,20 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_LIST_DIR}/cmake")
 find_package(OpenGL REQUIRED)
 
+# Find and enable OpenMP
+find_package(OpenMP)
+if(OpenMP_CXX_FOUND)
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS}")
+  add_compile_definitions(USE_OPENMP)
+endif()
+
+# Enable SIMD instructions
+if(MSVC)
+  add_compile_options(/arch:AVX2)
+elseif(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+  add_compile_options(-mavx2)
+endif()
+
 if (APPLE)
   add_definitions( -DGL_SILENCE_DEPRECATION )
 endif()
@@ -32,6 +46,24 @@ FetchContent_Declare(
 FetchContent_MakeAvailable(Eigen)
 FetchContent_GetProperties(Eigen SOURCE_DIR Eigen_SRC_DIR BINARY_DIR Eigen_BIN_DIR)
 
+# Add JSON library (nlohmann/json)
+FetchContent_Declare(
+  json
+  GIT_REPOSITORY https://github.com/nlohmann/json.git
+  GIT_TAG v3.11.2
+  GIT_SHALLOW TRUE
+)
+FetchContent_MakeAvailable(json)
+
+# Add stb image library (header-only)
+FetchContent_Declare(
+  stb
+  GIT_REPOSITORY https://github.com/nothings/stb.git
+  GIT_TAG master
+  GIT_SHALLOW TRUE
+)
+FetchContent_MakeAvailable(stb)
+FetchContent_GetProperties(stb SOURCE_DIR stb_SRC_DIR)
 
 set(collision_HEADERS include/collision/CollisionDetect.h 
                       include/collision/Geometry.h )
@@ -78,11 +110,22 @@ add_executable (slrbs main.cpp
           ${collision_HEADERS} ${collision_SOURCE}
           ${rigidbody_HEADERS} ${rigidbody_SOURCE}
           ${solver_HEADERS} ${solver_SOURCE}
-		  ${util_HEADERS} ${util_SOURCE}
+		  ${utils_HEADERS} ${utils_SOURCE}
           ${viewer_HEADERS} ${viewer_SOURCE} )
 
-include_directories(${CMAKE_CURRENT_SOURCE_DIR}/include ${Eigen_SRC_DIR} ${COMMON_INCLUDES})
-target_link_libraries(slrbs OpenGL::GL polyscope)
+include_directories(
+  ${CMAKE_CURRENT_SOURCE_DIR}/include 
+  ${Eigen_SRC_DIR}
+  ${stb_SRC_DIR}
+  ${COMMON_INCLUDES}
+)
+
+target_link_libraries(slrbs OpenGL::GL polyscope nlohmann_json::nlohmann_json)
+
+# Link OpenMP if found
+if(OpenMP_CXX_FOUND)
+  target_link_libraries(slrbs OpenMP::OpenMP_CXX)
+endif()
 
 # Setup source code groups
 #
