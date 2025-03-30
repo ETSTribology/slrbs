@@ -1,0 +1,132 @@
+name: Python Bindings
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  python:
+    name: Build Python Bindings
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        include:
+          - os: ubuntu-latest
+            preset: linux-python
+            artifact_path: build/linux/pyslrbs*.so
+            test_dir: build/linux
+            
+          - os: windows-latest
+            preset: windows-python
+            artifact_path: build/win64/Release/pyslrbs*.pyd
+            test_dir: build/win64/Release
+            
+          - os: macos-latest
+            preset: macos-python
+            artifact_path: build/macos/pyslrbs*.so
+            test_dir: build/macos
+            
+    steps:
+    - uses: actions/checkout@v3
+      with:
+        submodules: recursive
+        fetch-depth: 0
+        
+    # Platform-specific dependency installation
+    - name: Install dependencies (Linux)
+      if: matrix.os == 'ubuntu-latest'
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y build-essential libgl1-mesa-dev libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev ninja-build libomp-dev ccache python3-dev python3-pip
+    
+    - name: Install dependencies (macOS)
+      if: matrix.os == 'macos-latest'
+      run: |
+        brew install ninja ccache libomp
+    
+    - name: Setup Ninja (Windows)
+      if: matrix.os == 'windows-latest'
+      uses: ashutoshvarma/setup-ninja@master
+        
+    # Setup ccache for Linux and macOS
+    - name: Setup ccache
+      if: matrix.os == 'ubuntu-latest' || matrix.os == 'macos-latest'
+      uses: hendrikmuhs/ccache-action@v1.2
+      with:
+        key: ${{ matrix.os }}-python
+        
+    - name: Install CMake
+      uses: lukka/get-cmake@latest
+      with:
+        cmakeVersion: '3.25.0'
+        
+    # Configure CMake - Use preset if available
+    - name: Configure CMake (with preset)
+      if: matrix.preset != ''
+      run: cmake --preset ${{ matrix.preset }}
+      
+    # macOS-specific configuration (if preset doesn't work)
+    - name: Configure CMake (macOS alternative)
+      if: matrix.os == 'macos-latest' && failure()
+      run: |
+        cmake -B build/macos -G "Ninja" \
+          -DCMAKE_BUILD_TYPE=Release \
+          -DBUILD_PYTHON_BINDINGS=ON \
+          -DCMAKE_C_COMPILER_LAUNCHER=ccache \
+          -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
+        
+    # Build (based on platform)
+    - name: Build (Linux)
+      if: matrix.os == 'ubuntu-latest'
+      run: cmake --build build/linux --config Release
+      
+    - name: Build (Windows)
+      if: matrix.os == 'windows-latest'
+      run: cmake --build build/win64 --config Release
+      
+    - name: Build (macOS)
+      if: matrix.os == 'macos-latest'
+      run: cmake --build build/macos --config Release
+      
+    # Test the Python module
+    - name: Test Python Module
+      run: |
+        # Create a test script
+        cat > test_module.py << 'EOF'
+        try:
+            import sys
+            sys.path.append("./${{ matrix.test_dir }}")
+            
+            import pyslrbs
+            print("Successfully imported pyslrbs module")
+            
+            # Create a simple rigid body system
+            system = pyslrbs.RigidBodySystem()
+            print("Successfully created RigidBodySystem")
+            
+            # Add a rigid body
+            rb = pyslrbs.RigidBody()
+            system.addRigidBody(rb)
+            print("Successfully added RigidBody to system")
+            
+            print("All tests passed!")
+        except Exception as e:
+            print(f"Error: {e}")
+            exit(1)
+        EOF
+        
+        # Run the test script
+        python3 test_module.py || python test_module.py
+      
+    # Upload Python module
+    - name: Upload Python Module
+      uses: actions/upload-artifact@v3
+      with:
+        name: pyslrbs-${{ matrix.os }}
+        path: ${{ matrix.artifact_path }}
+        if-no-files-found: error

@@ -1,0 +1,226 @@
+{
+    "name": "MarbleBox",
+    "description": "Box filled with spherical marbles arranged in a grid pattern",
+    "version": 1.0,
+    "bodies": [
+        {
+            "id": 0,
+            "mass": 10000.0,
+            "fixed": false,
+            "position": {
+                "x": 0.0,
+                "y": 9.0,
+                "z": 0.0
+            },
+            "orientation": {
+                "w": 1.0,
+                "x": 0.0,
+                "y": 0.0,
+                "z": 0.0
+            },
+            "linear_velocity": {
+                "x": 0.0,
+                "y": 0.0,
+                "z": 0.0
+            },
+            "angular_velocity": {
+                "x": 0.0,
+                "y": 0.0,
+                "z": 0.0
+            },
+            "geometry": {
+                "type": "sphere",
+                "radius": 4.0
+            },
+            "visual": {
+                "color": {
+                    "r": 1.0,
+                    "g": 0.1,
+                    "b": 0.1
+                },
+                "transparency": 0.8,
+                "smooth_shade": true,
+                "edge_width": 1.0
+            }
+        },
+        {
+            "id": 1,
+            "mass": 1.0,
+            "fixed": true,
+            "position": {
+                "x": 4.75,
+                "y": 2.0,
+                "z": 0.0
+            },
+            "orientation": {
+                "w": 1.0,
+                "x": 0.0,
+                "y": 0.0,
+                "z": 0.0
+            },
+            "geometry": {
+                "type": "box",
+                "dimensions": {
+                    "x": 0.4,
+                    "y": 4.0,
+                    "z": 10.0
+                }
+            },
+            "visual": {
+                "color": {
+                    "r": 0.6,
+                    "g": 0.6,
+                    "b": 0.6
+                },
+                "transparency": 0.4,
+                "smooth_shade": false,
+                "edge_width": 1.0
+            }
+        },
+        {
+            "id": 2,
+            "mass": 1.0,
+            "fixed": true,
+            "position": {
+                "x": -4.75,
+                "y": 2.0,
+                "z": 0.0
+            },
+            "orientation": {
+                "w": 1.0,
+                "x": 0.0,
+                "y": 0.0,
+                "z": 0.0
+            },
+            "geometry": {
+                "type": "box",
+                "dimensions": {
+                    "x": 0.4,
+                    "y": 4.0,
+                    "z": 10.0
+                }
+            },
+            "visual": {
+                "color": {
+                    "r": 0.6,
+                    "g": 0.6,
+                    "b": 0.6
+                },
+                "transparency": 0.4,
+                "smooth_shade": false,
+                "edge_width": 1.0
+            }
+        },
+        {
+            "id": 3,
+            "mass": 1.0,
+            "fixed": true,
+            "position": {
+                "x": 0.0,
+                "y": 2.0,
+                "z": 4.75
+            },
+            "orientation": {
+                "w": 0.7071068,
+                "x": 0.0,
+                "y": 0.7071068,
+                "z": 0.0
+            },
+            "geometry": {
+                "type": "box",
+                "dimensions": {
+                    "x": 0.4,
+                    "y": 4.0,
+                    "z": 10.0
+                }
+            },
+            "visual": {
+                "color": {
+                    "r": 0.6,
+                    "g": 0.6,
+                    "b": 0.6
+                },
+                "transparency": 0.4,
+                "smooth_shade": false,
+                "edge_width": 1.0
+            }
+        },
+        {
+            "id": 4,
+            "mass": 1.0,
+            "fixed": true,
+            "position": {
+                "x": 0.0,
+                "y": 2.0,
+                "z": -4.75
+            },
+            "orientation": {
+                "w": 0.7071068,
+                "x": 0.0,
+                "y": 0.7071068,
+                "z": 0.0
+            },
+            "geometry": {
+                "type": "box",
+                "dimensions": {
+                    "x": 0.4,
+                    "y": 4.0,
+                    "z": 10.0
+                }
+            },
+            "visual": {
+                "color": {
+                    "r": 0.6,
+                    "g": 0.6,
+                    "b": 0.6
+                },
+                "transparency": 0.4,
+                "smooth_shade": false,
+                "edge_width": 1.0
+            }
+        },
+        {
+            "id": 5,
+            "mass": 1.0,
+            "fixed": true,
+            "position": {
+                "x": 0.0,
+                "y": 0.0,
+                "z": 0.0
+            },
+            "orientation": {
+                "w": 1.0,
+                "x": 0.0,
+                "y": 0.0,
+                "z": 0.0
+            },
+            "geometry": {
+                "type": "box",
+                "dimensions": {
+                    "x": 10.0,
+                    "y": 0.4,
+                    "z": 10.0
+                }
+            },
+            "visual": {
+                "color": {
+                    "r": 0.6,
+                    "g": 0.6,
+                    "b": 0.6
+                },
+                "transparency": 0.4,
+                "smooth_shade": false,
+                "edge_width": 1.0
+            }
+        }
+    ],
+    "physics": {
+        "gravity": {
+            "x": 0.0,
+            "y": -9.81,
+            "z": 0.0
+        },
+        "time_step": 0.01,
+        "solver_iterations": 10
+    }
+}

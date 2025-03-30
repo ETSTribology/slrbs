@@ -1,4 +1,4 @@
-name: Build and Test
+name: Platform Builds
 
 on:
   push:
@@ -8,88 +8,113 @@ on:
   workflow_dispatch:
 
 jobs:
-  build-windows:
-    name: Build on Windows
-    runs-on: windows-latest
+  build:
+    name: Build on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
+        os: [windows-latest, ubuntu-latest, macos-latest]
         build_type: [Debug, Release]
-        
+        include:
+          - os: windows-latest
+            preset_prefix: windows
+            artifact_path: build/win64/${{ matrix.build_type }}/slrbs.exe
+            
+          - os: ubuntu-latest
+            preset_prefix: linux
+            artifact_path: build/linux/slrbs
+            
+          - os: macos-latest
+            preset_prefix: macos
+            artifact_path: build/macos/slrbs
+            
     steps:
     - uses: actions/checkout@v3
       with:
         submodules: recursive
+        fetch-depth: 0
         
-    - name: Setup Ninja
+    # Windows-specific setup
+    - name: Setup Ninja (Windows)
+      if: matrix.os == 'windows-latest'
       uses: ashutoshvarma/setup-ninja@master
       
-    - name: Install CMake
-      uses: lukka/get-cmake@latest
-      with:
-        cmakeVersion: '3.23.0'
-        
-    - name: Configure CMake
-      run: cmake --preset windows-${{ matrix.build_type | lower }}
-      
-    - name: Build
-      run: cmake --build build/win64 --config ${{ matrix.build_type }}
-
-  build-linux:
-    name: Build on Linux
-    runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        build_type: [Debug, Release]
-        
-    steps:
-    - uses: actions/checkout@v3
-      with:
-        submodules: recursive
-        
-    - name: Install dependencies
+    # Linux-specific setup
+    - name: Install dependencies (Linux)
+      if: matrix.os == 'ubuntu-latest'
       run: |
         sudo apt-get update
-        sudo apt-get install -y build-essential libgl1-mesa-dev libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev ninja-build
+        sudo apt-get install -y build-essential libgl1-mesa-dev libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev ninja-build libomp-dev ccache
         
+    # macOS-specific setup
+    - name: Install dependencies (macOS)
+      if: matrix.os == 'macos-latest'
+      run: |
+        brew install ninja ccache libomp
+        
+    # Setup ccache for Linux and macOS
+    - name: Setup ccache
+      if: matrix.os == 'ubuntu-latest' || matrix.os == 'macos-latest'
+      uses: hendrikmuhs/ccache-action@v1.2
+      with:
+        key: ${{ matrix.os }}-${{ matrix.build_type }}
+        
+    # Install CMake for all platforms
     - name: Install CMake
       uses: lukka/get-cmake@latest
       with:
-        cmakeVersion: '3.23.0'
+        cmakeVersion: '3.25.0'
         
-    - name: Configure CMake
-      run: cmake --preset linux-${{ matrix.build_type | lower }}
+    # Configure CMake - Standard preset approach
+    - name: Configure CMake (Windows/Linux)
+      if: matrix.os == 'windows-latest' || matrix.os == 'ubuntu-latest'
+      run: cmake --preset ${{ matrix.preset_prefix }}-${{ matrix.build_type | lower }}
       
-    - name: Build
-      run: cmake --build build/linux --config ${{ matrix.build_type }}
+    # Configure CMake - Custom for macOS to use Ninja
+    - name: Configure CMake (macOS)
+      if: matrix.os == 'macos-latest'
+      run: |
+        cmake -B build/macos -G "Ninja" \
+          -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} \
+          -DCMAKE_C_COMPILER_LAUNCHER=ccache \
+          -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
+      
+    # Build (Windows)
+    - name: Build (Windows)
+      if: matrix.os == 'windows-latest'
+      run: cmake --build build/win64 --config ${{ matrix.build_type }}
 
-  build-macos:
-    name: Build on macOS
-    runs-on: macos-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        build_type: [Debug, Release]
-        
-    steps:
-    - uses: actions/checkout@v3
-      with:
-        submodules: recursive
-        
-    - name: Install dependencies
-      run: |
-        brew install ninja
-        
-    - name: Install CMake
-      uses: lukka/get-cmake@latest
-      with:
-        cmakeVersion: '3.23.0'
-        
-    - name: Configure CMake
-      run: |
-        # Use Ninja instead of Xcode for faster builds on GitHub Actions
-        cmake -B build/macos -G "Ninja" -DCMAKE_BUILD_TYPE=${{ matrix.build_type }}
-        
-    - name: Build
+    # Build (Linux)
+    - name: Build (Linux)
+      if: matrix.os == 'ubuntu-latest'
+      run: cmake --build build/linux --config ${{ matrix.build_type }}
+      
+    # Build (macOS)
+    - name: Build (macOS)
+      if: matrix.os == 'macos-latest'
       run: cmake --build build/macos --config ${{ matrix.build_type }}
+
+    # Run Tests
+    - name: Run Tests (Windows)
+      if: matrix.os == 'windows-latest'
+      working-directory: ${{github.workspace}}/build/win64
+      run: ctest -C ${{ matrix.build_type }}
+      
+    - name: Run Tests (Linux)
+      if: matrix.os == 'ubuntu-latest'
+      working-directory: ${{github.workspace}}/build/linux
+      run: ctest -C ${{ matrix.build_type }}
+      
+    - name: Run Tests (macOS)
+      if: matrix.os == 'macos-latest'
+      working-directory: ${{github.workspace}}/build/macos
+      run: ctest -C ${{ matrix.build_type }}
+      
+    # Upload artifacts
+    - name: Upload Artifacts
+      uses: actions/upload-artifact@v3
+      with:
+        name: slrbs-${{ matrix.os }}-${{ matrix.build_type }}
+        path: ${{ matrix.artifact_path }}
+        if-no-files-found: error

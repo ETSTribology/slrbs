@@ -1,321 +1,514 @@
 #include "viewer/SimViewer.h"
-
-#include "polyscope/polyscope.h"
-#include "polyscope/curve_network.h"
-#include "polyscope/point_cloud.h"
-#include "polyscope/pick.h"
-#include "polyscope/surface_mesh.h"
-#include "polyscope/view.h"
-#include "imgui.h"
-
-#include <chrono>
-#include <iostream>
-#include <functional>
-
-#include "contact/Contact.h"
+#include "viewer/ViewerUI.h"
+#include "viewer/ViewerInteraction.h"
+#include "viewer/ScenarioManager.h"
+#include "viewer/SimulationManager.h"
+#include "utils/JsonLoader.h"
 #include "rigidbody/RigidBodySystem.h"
 #include "rigidbody/RigidBodyState.h"
-#include "rigidbody/Scenarios.h"
+#include "contact/Contact.h"
+#include "scenarios/Scenarios.h"
+#include "log/CSVLogger.h"
+#include "renderer/RendererFactory.h"
 
-using namespace std;
+#include <glad/glad.h>
+#include <GLFW/glfw3.h>
+#include <polyscope/polyscope.h>
+#include <polyscope/point_cloud.h>
+#include <polyscope/surface_mesh.h>
+#include <polyscope/view.h>
+#include <polyscope/curve_network.h>
 
-namespace
-{
-    static RigidBodySystem* m_rigidBodySystem = new RigidBodySystem;
-    
-    static const char* strContacts = "contacts";
-    static const char* strJointPoints = "jointsPoint";
-    static const char* strJointCurve = "jointsCurve";
+#include <iostream>
+#include <stdexcept>
+#include <chrono>
+#include <iomanip>
+#include <sstream>
+#include <functional>
 
-    static void updateRigidBodyMeshes(RigidBodySystem& _rigidBodySystem)
-    {
-        auto& bodies = _rigidBodySystem.getBodies();
-        for(unsigned int k = 0; k < bodies.size(); ++k)
-        { 
-            if (!bodies[k]->mesh) continue;
+namespace slrbs {
 
-            Eigen::Isometry3f tm = Eigen::Isometry3f::Identity();
+// For static data that was previously in anonymous namespace
+namespace {
+    static CSVLogger s_log;
+    static int s_substepsIdx = -1;
+    static int s_kinEnergyIdx = -1;
+}
+
+// GLFW error callback
+static void glfwErrorCallback(int error, const char* description) {
+    std::cerr << "GLFW Error " << error << ": " << description << std::endl;
+}
+
+// GLFW window resize callback
+static void glfwResizeCallback(GLFWwindow* window, int width, int height) {
+    // Get user pointer and cast to SimViewer
+    SimViewer* viewer = static_cast<SimViewer*>(glfwGetWindowUserPointer(window));
+    if (viewer) {
+        // Update config
+        viewer->getConfig().windowWidth = width;
+        viewer->getConfig().windowHeight = height;
         
-            // copy rotation part
-            tm.linear() = bodies[k]->q.toRotationMatrix();
-
-            // copy translation part
-            tm.translation() = bodies[k]->x;
-
-            bodies[k]->mesh->setTransform(glm::make_mat4x4(tm.data()));
-        }
+        // Update viewport
+        glViewport(0, 0, width, height);
     }
+}
 
-    static void updateContactPoints(RigidBodySystem& _rigidBodySystem)
-    {
-        const auto& contacts = _rigidBodySystem.getContacts();
-        const unsigned int numContacts = contacts.size();
-
-        if (numContacts == 0)
-        {
-            polyscope::removePointCloud("contacts");
-        }
-        else
-        {
-            Eigen::MatrixXf contactP(numContacts, 3);
-            Eigen::MatrixXf contactN(numContacts, 3);
-
-            for (unsigned int i = 0; i < numContacts; ++i)
-            {
-                contactP.row(i)(0) = contacts[i]->p(0); contactP.row(i)(1) = contacts[i]->p(1); contactP.row(i)(2) = contacts[i]->p(2);
-                contactN.row(i)(0) = contacts[i]->n(0); contactN.row(i)(1) = contacts[i]->n(1); contactN.row(i)(2) = contacts[i]->n(2);
-            }
-
-            auto pointCloud = polyscope::registerPointCloud("contacts", contactP);
-
-            pointCloud->setPointColor({ 1.0f, 0.0f, 0.0f });
-            pointCloud->setPointRadius(0.005);
-            pointCloud->addVectorQuantity("normal", contactN)->setVectorColor({ 1.0f, 1.0f, 0.0f })->setVectorLengthScale(0.05f)->setEnabled(true);
-        }
+SimViewer::SimViewer() : window(nullptr) {
+    // Load configuration from JSON
+    try {
+        config = loadViewerConfigFromJson("default_viewer.json");
+    } catch (const std::exception& e) {
+        std::cerr << "Failed to load config: " << e.what() << std::endl;
+        std::cerr << "Using default configuration." << std::endl;
     }
+    
+    // Initialize components
+    rigidBodySystem = std::make_unique<RigidBodySystem>();
+    
+    // Create the renderer
+    rigidBodyRenderer = RendererFactory::createDefaultRenderer();
+    
+    // Initialize logging
+    s_kinEnergyIdx = s_log.addField("kin_energy");
+    s_substepsIdx = s_log.addField("substeps");
+    
+    // Create reset state
+    resetState = std::make_unique<RigidBodySystemState>(*rigidBodySystem);
+}
 
-    static void updateJointViz(RigidBodySystem& _rigidBodySystem)
-    {
-        const auto& joints = _rigidBodySystem.getJoints();
-        const unsigned int numJoints = joints.size();
+SimViewer::~SimViewer() {
+    shutdown();
+}
 
-        if (numJoints == 0)
-        {
-            polyscope::removePointCloud("jointsPoint");
-            polyscope::removeCurveNetwork("jointsCurve");
-        }
-        else
-        {
-            Eigen::MatrixXf jointP(2 * numJoints, 3);
-            Eigen::MatrixXi jointE(numJoints, 2);
-            for (unsigned int i = 0; i < numJoints; ++i)
-            {
-                const Eigen::Vector3f p0 = joints[i]->body0->q * joints[i]->r0 + joints[i]->body0->x;
-                const Eigen::Vector3f p1 = joints[i]->body1->q * joints[i]->r1 + joints[i]->body1->x;
+void SimViewer::initialize() {
+    setupWindow();
+    setupPolyscope();
+    
+    // Initialize renderer
+    rigidBodyRenderer->initialize();
+    
+    // Initialize components
+    ui = std::make_unique<ViewerUI>(this);
+    ui->initialize(window);
+    
+    interaction = std::make_unique<ViewerInteraction>(this);
+    interaction->initialize(window);
+    
+    scenarioManager = std::make_unique<ScenarioManager>(this);
+    scenarioManager->initialize();
+    
+    simulationManager = std::make_unique<SimulationManager>(this);
+    simulationManager->initialize();
+    
+    // Set background color
+    glm::vec3& bg = config.rendering.backgroundColor;
+    glClearColor(bg.r, bg.g, bg.b, 1.0f);
+    
+    // Add pre-step hook for geometric stiffness damping
+    rigidBodySystem->setPreStepFunc([this](RigidBodySystem& system, float h) {
+        this->preStep(system, h);
+    });
+    
+    std::cout << "SimViewer initialized successfully." << std::endl;
+}
 
-                jointP.row(2 * i) = p0;
-                jointP.row(2 * i + 1) = p1;
-                jointE.row(i) = Eigen::Vector2i(2 * i, 2 * i + 1);
-            }
-
-            auto pointCloud = polyscope::registerPointCloud("jointsPoint", jointP);
-            pointCloud->setPointColor({ 0.0f, 0.0f, 1.0f });
-            pointCloud->setPointRadius(0.005);
-            auto curves = polyscope::registerCurveNetwork("jointsCurve", jointP, jointE);
-            curves->setRadius(0.002f);
-        }
+void SimViewer::setupWindow() {
+    // Set error callback
+    glfwSetErrorCallback(glfwErrorCallback);
+    
+    // Initialize GLFW
+    if (!glfwInit()) {
+        throw std::runtime_error("Failed to initialize GLFW");
     }
-
-
+    
+    // OpenGL context settings
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
+    glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
+    glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
+    
+    // Mac compatibility
+    #ifdef __APPLE__
+    glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
+    #endif
+    
+    // Create window
+    window = glfwCreateWindow(
+        config.windowWidth,
+        config.windowHeight,
+        config.windowTitle.c_str(),
+        nullptr, nullptr
+    );
+    
+    if (!window) {
+        glfwTerminate();
+        throw std::runtime_error("Failed to create GLFW window");
+    }
+    
+    // Set window user pointer for callbacks
+    glfwSetWindowUserPointer(window, this);
+    
+    // Set resize callback
+    glfwSetWindowSizeCallback(window, glfwResizeCallback);
+    
+    // Make the window's context current
+    glfwMakeContextCurrent(window);
+    
+    // Initialize GLAD
+    if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress)) {
+        glfwDestroyWindow(window);
+        glfwTerminate();
+        throw std::runtime_error("Failed to initialize GLAD");
+    }
+    
+    // Enable vsync
+    glfwSwapInterval(1);
+    
+    // Set viewport
+    glViewport(0, 0, config.windowWidth, config.windowHeight);
+    
+    std::cout << "Window setup completed." << std::endl;
 }
 
-SimViewer::SimViewer() :
-    m_dt(0.01f), m_subSteps(1), m_dynamicsTime(0.0f),
-    m_paused(true), m_stepOnce(false),
-    m_enableCollisions(true), m_enableScreenshots(false),
-    m_drawContacts(true), m_drawConstraints(true),
-    m_resetState()
-{
-    m_resetState = std::make_unique<RigidBodySystemState>(*m_rigidBodySystem);
-    reset();
-}
-
-SimViewer::~SimViewer()
-{
-}
-
-void SimViewer::reset()
-{
-    std::cout << " ---- Reset ----- " << std::endl;
-    m_resetState->restore(*m_rigidBodySystem);
-    m_dynamicsTime = 0.0f;
-
-    updateRigidBodyMeshes(*m_rigidBodySystem);
-    polyscope::resetScreenshotIndex();
-}
-
-void SimViewer::save()
-{
-    std::cout << " ---- Saving current state ----- " << std::endl;
-    m_resetState->save(*m_rigidBodySystem);
-}
-
-void SimViewer::start()
-{
-    // Setup Polyscope
-    polyscope::options::programName = "slrbs";
+void SimViewer::setupPolyscope() {
+    // Initialize polyscope settings
+    polyscope::options::programName = config.windowTitle;
     polyscope::options::verbosity = 0;
     polyscope::options::usePrefsFile = false;
     polyscope::options::alwaysRedraw = true;
     polyscope::options::ssaaFactor = 2;
     polyscope::options::openImGuiWindowForUserCallback = true;
-    polyscope::options::groundPlaneHeightFactor = 0.0f; // adjust the plane height
-    polyscope::options::groundPlaneMode = polyscope::GroundPlaneMode::TileReflection;
-    polyscope::options::buildGui = false;
-    polyscope::options::maxFPS = -1;
+    polyscope::options::groundPlaneHeightFactor = 0.0f;
+    polyscope::options::groundPlaneMode = polyscope::GroundPlaneMode::ShadowOnly;
+    polyscope::options::buildGui = true;
+    polyscope::options::maxFPS = 60;
     polyscope::options::groundPlaneEnabled = true;
     polyscope::options::screenshotExtension = ".png";
-
-    // initialize
+    
+    // Set window size
+    polyscope::view::windowWidth = config.windowWidth;
+    polyscope::view::windowHeight = config.windowHeight;
+    
+    // Initialize
     polyscope::init();
-
-    // Setup a viewing volume.
+    
+    // Setup viewing volume
     polyscope::options::automaticallyComputeSceneExtents = false;
     polyscope::state::lengthScale = 10.0f;
-    polyscope::state::boundingBox = std::tuple<glm::vec3, glm::vec3>{ {-5., 0, -5.}, {5., 5., 5.} };
+    polyscope::state::boundingBox = std::tuple<glm::vec3, glm::vec3>{
+        {-5.0, 0.0, -5.0}, {5.0, 5.0, 5.0}
+    };
+    
+    // Set user callback to our render function
+    polyscope::state::userCallback = [this]() { this->drawGUI(); };
+    
+    std::cout << "Polyscope setup completed." << std::endl;
+}
 
-    // Specify the update callback
-    polyscope::state::userCallback = std::bind(&SimViewer::draw, this);
-
-    // Add pre-step hook.
-    m_rigidBodySystem->setPreStepFunc(std::bind(&SimViewer::preStep, this, std::placeholders::_1));
-
-    // Show the window
+void SimViewer::run() {
+    // Use polyscope's main loop instead of our own
     polyscope::show();
-
 }
 
-void SimViewer::drawGUI()
-{
-    ImGui::Text("Simulation:");
-    ImGui::Checkbox("Pause", &m_paused);
-    if (ImGui::Button("Step once"))
-    {
-        m_stepOnce = true;
+void SimViewer::shutdown() {
+    std::cout << "Shutting down SimViewer..." << std::endl;
+    
+    // Save current config
+    try {
+        saveViewerConfigToJson(config, "user_config.json");
+    } catch (const std::exception& e) {
+        std::cerr << "Failed to save config: " << e.what() << std::endl;
     }
-    if (ImGui::Button("Reset")) {
-        reset();
+    
+    // Cleanup components in reverse order
+    if (ui) ui->shutdown();
+    if (simulationManager) simulationManager.reset();
+    if (scenarioManager) scenarioManager.reset();
+    if (interaction) interaction.reset();
+    if (rigidBodyRenderer) rigidBodyRenderer.reset();
+    if (ui) ui.reset();
+    
+    // Clean up polyscope
+    polyscope::shutdown();
+    
+    // Clean up GLFW
+    if (window) {
+        glfwDestroyWindow(window);
+        window = nullptr;
     }
-    if (ImGui::Button("Save")) {
-        save();
-    }
-
-    ImGui::PushItemWidth(100);
-    ImGui::SliderFloat("Time step", &m_dt, 0.0f, 0.1f, "%.3f");
-    ImGui::SliderInt("Num. sub-steps", &m_subSteps, 1, 20, "%u");
-    ImGui::SliderInt("Solver iters.", &(m_rigidBodySystem->solverIter), 1, 100, "%u");
-    ImGui::SliderFloat("Friction coeff.", &(Contact::mu), 0.0f, 2.0f, "%.2f");
-    ImGui::RadioButton("PGS", &(m_rigidBodySystem->solverId), 0);  ImGui::SameLine();
-    ImGui::RadioButton("Conj. Gradient (NO CONTACT)", &(m_rigidBodySystem->solverId), 1);
-    ImGui::RadioButton("Conj. Residual (NO CONTACT)", &(m_rigidBodySystem->solverId), 2);
-    ImGui::PopItemWidth();
-
-    if (ImGui::Checkbox("Enable collision detecton", &m_enableCollisions)) {
-        m_rigidBodySystem->setEnableCollisionDetection(m_enableCollisions);
-    }
-
-    ImGui::Checkbox("Draw contacts", &m_drawContacts);
-    ImGui::Checkbox("Draw constraints", &m_drawConstraints);
-    ImGui::Checkbox("Enable screenshots", &m_enableScreenshots);
-
-    if (ImGui::Button("Sphere on box")) {
-        createSphereOnBox();
-    }
-    if (ImGui::Button("Marble box")) {
-        createMarbleBox();
-    }
-    if (ImGui::Button("Swinging box")) {
-        createSwingingBox();
-    }
-    if (ImGui::Button("Cylinder on plane")) {
-        createCylinderOnPlane();
-    }
-    if (ImGui::Button("Create car scene")) {
-        createCarScene();
-    }
-
-    ImGui::Text("Step time: %3.3f ms", m_dynamicsTime);
-
+    glfwTerminate();
+    
+    std::cout << "SimViewer shutdown completed." << std::endl;
 }
 
-void SimViewer::draw()
-{
-    drawGUI();
-
-    if( !m_paused || m_stepOnce )
-    {
+void SimViewer::drawGUI() {
+    // Check if we should update the simulation
+    bool shouldUpdate = !paused || stepOnce;
+    
+    if (shouldUpdate) {
         auto start = std::chrono::high_resolution_clock::now();
 
-        // Step the simulation.
-        // The time step dt is divided by the number of sub-steps.
-        //
-        const float dt = m_dt / (float)m_subSteps;
-        for(int i = 0; i < m_subSteps; ++i)
-        {
-            m_rigidBodySystem->step(dt);
+        // Automatically choose next substeps based on geometric stiffness
+        if (adaptiveTimesteps) {
+            for (auto b : rigidBodySystem->getBodies())
+                b->gsSum.setZero();
+
+            // Compute geometric stiffness contributions
+            for (auto j : rigidBodySystem->getJoints()) {
+                j->computeGeometricStiffness();
+                j->body0->gsSum += j->G0;
+                j->body1->gsSum += j->G1;
+            }
+
+            for (auto c : rigidBodySystem->getContacts()) {
+                c->computeGeometricStiffness();
+                c->body0->gsSum += c->G0;
+                c->body1->gsSum += c->G1;
+            }
+
+            float maxK_M = 0.0f;
+            for (auto b : rigidBodySystem->getBodies()) {
+                if (b->fixed) continue;
+
+                for (int c = 0; c < 3; c++) {
+                    const float m = b->mass;
+                    const float k = 2.0f * b->gsSum.col(c).norm();
+                    maxK_M = std::max(k / m, maxK_M);
+                }
+
+                for (int c = 0; c < 3; c++) {
+                    const float m = b->I(c, c);
+                    const float k = 2.0f * b->gsSum.col(c + 3).norm();
+                    maxK_M = std::max(k / m, maxK_M);
+                }
+            }
+
+            const float dt = 2.0f * alpha * std::sqrt(1.0f / std::max(maxK_M, 0.0001f));
+            substeps = std::max(1, (int)ceil(timeStep / dt));
         }
+
+        // Get step size accounting for substeps
+        const float dt = timeStep / (float)substeps;
+
+        // Step the simulation
+        for(int i = 0; i < substeps; ++i) {
+            rigidBodySystem->step(dt);
+        }
+
+        // Finish timing
         auto stop = std::chrono::high_resolution_clock::now();
 
-        updateRigidBodyMeshes(*m_rigidBodySystem);
+        // Update frame counter
+        ++frameCounter;
 
-        if (m_drawContacts)
-            updateContactPoints(*m_rigidBodySystem);
-        else
-            polyscope::removePointCloud(strContacts);
+        // Update visualizations
+        rigidBodyRenderer->renderBodies(rigidBodySystem->getBodies());
+        rigidBodyRenderer->renderContacts(rigidBodySystem->getContacts());
+        rigidBodyRenderer->renderJoints(rigidBodySystem->getJoints());
+        rigidBodyRenderer->renderBoundingBoxes(rigidBodySystem->getBodies());
 
-        if (m_drawConstraints)
-            updateJointViz(*m_rigidBodySystem);
-        else
-        {
-            polyscope::removePointCloud(strJointPoints);
-            polyscope::removeCurveNetwork(strJointCurve);
-        }
-
-
+        // Calculate computation time
         auto duration = std::chrono::duration_cast<std::chrono::microseconds>(stop - start);
-        m_dynamicsTime = (float)duration.count() / 1000.0f;
+        dynamicsTime = (float)duration.count() / 1000.0f;
 
-        if (m_enableScreenshots)
-        {
+        // Take screenshot if enabled
+        if (enableScreenshots) {
             polyscope::screenshot(false);
         }
 
-        // Clear step-once flag.
-        m_stepOnce = false;
+        // Clear step-once flag
+        stepOnce = false;
+
+        // Compute performance metrics
+        computePerformanceMetrics();
+    }
+    
+    // Display the UI
+    ImGui::Text("Simulation:");
+    
+    // Basic controls
+    ImGui::Checkbox("Pause", &paused);
+    
+    if (ImGui::Button("Step once")) {
+        stepOnce = true;
+    }
+    
+    if (ImGui::Button("Reset")) {
+        reset();
+    }
+    
+    if (ImGui::Button("Save")) {
+        save();
+    }
+    
+    // Advanced controls
+    ImGui::PushItemWidth(100);
+    
+    ImGui::Checkbox("Adaptive time steps", &adaptiveTimesteps);
+    ImGui::Checkbox("Geometric stiffness damping", &geometricStiffnessDamping);
+    
+    if (adaptiveTimesteps || geometricStiffnessDamping) {
+        ImGui::SliderFloat("Alpha", &alpha, 0.0f, 1.0f);
+    }
+    
+    ImGui::SliderFloat("Time step", &timeStep, 0.0f, 0.1f, "%.3f");
+    ImGui::SliderInt("Num. sub-steps", &substeps, 1, 20, "%u");
+    ImGui::SliderInt("Solver iters.", &(rigidBodySystem->solverIter), 1, 1000, "%u");
+    ImGui::SliderFloat("Friction coeff.", &(Contact::mu), 0.0f, 2.0f, "%.2f");
+    
+    ImGui::RadioButton("PGS", &(rigidBodySystem->solverId), 0);  
+    ImGui::SameLine();
+    ImGui::RadioButton("Conj. Gradient (NO CONTACT)", &(rigidBodySystem->solverId), 1);
+    ImGui::RadioButton("Conj. Residual (NO CONTACT)", &(rigidBodySystem->solverId), 2);
+    ImGui::RadioButton("BPP", &(rigidBodySystem->solverId), 3);
+    
+    ImGui::PopItemWidth();
+    
+    // Debug visualization options
+    if (ImGui::Checkbox("Enable collision detection", &enableCollisions)) {
+        rigidBodySystem->setEnableCollisionDetection(enableCollisions);
+    }
+    
+    bool showContacts = rigidBodyRenderer->getShowContacts();
+    if (ImGui::Checkbox("Draw contacts", &showContacts)) {
+        rigidBodyRenderer->setShowContacts(showContacts);
+    }
+    
+    bool showJoints = rigidBodyRenderer->getShowJoints();
+    if (ImGui::Checkbox("Draw constraints", &showJoints)) {
+        rigidBodyRenderer->setShowJoints(showJoints);
+    }
+    
+    bool showBoundingBoxes = rigidBodyRenderer->getShowBoundingBoxes();
+    if (ImGui::Checkbox("Show bounding boxes", &showBoundingBoxes)) {
+        rigidBodyRenderer->setShowBoundingBoxes(showBoundingBoxes);
+    }
+    
+    ImGui::Checkbox("Enable screenshots", &enableScreenshots);
+    ImGui::Checkbox("Enable logging", &enableLogging);
+    
+    // Scenario buttons
+    ImGui::Separator();
+    ImGui::Text("Scenarios:");
+    
+    if (ImGui::Button("Sphere on box")) loadScenario(0);
+    if (ImGui::Button("Marble box")) loadScenario(1);
+    if (ImGui::Button("Swinging box")) loadScenario(2);
+    if (ImGui::Button("Stack")) loadScenario(3);
+    if (ImGui::Button("Cylinder on plane")) loadScenario(4);
+    if (ImGui::Button("Create car scene")) loadScenario(5);
+    if (ImGui::Button("Create bridge scene")) loadScenario(6);
+    
+    // Performance metrics
+    ImGui::Separator();
+    ImGui::Text("Performance:");
+    
+    ImGui::Text("Kinetic energy: %8.3f", kineticEnergy);
+    ImGui::Text("Step time: %3.3f ms", dynamicsTime);
+    ImGui::Text("Constraint error: %6.6f", constraintError);
+    ImGui::Text("Frame: %d", frameCounter);
+}
+
+void SimViewer::reset() {
+    std::cout << "---- Reset ----" << std::endl;
+    resetState->restore(*rigidBodySystem);
+    dynamicsTime = 0.0f;
+    frameCounter = 0;
+    kineticEnergy = 0.0f;
+    constraintError = 0.0f;
+
+    if (enableLogging) {
+        s_log.clear();
+    }
+
+    // Update visualization
+    rigidBodyRenderer->updateAll();
+    
+    polyscope::resetScreenshotIndex();
+}
+
+void SimViewer::save() {
+    std::cout << "---- Saving current state ----" << std::endl;
+    resetState->save(*rigidBodySystem);
+}
+
+void SimViewer::loadScenario(int scenarioType) {
+    scenarioManager->loadScenario(scenarioType);
+    
+    // Apply colors and textures from the loaded scenario
+    for (auto* body : rigidBodySystem->getBodies()) {
+        // Apply color if defined
+        if (body->color.norm() > 0) {
+            glm::vec3 color(body->color.x(), body->color.y(), body->color.z());
+            rigidBodyRenderer->setBodyColor(*body, color);
+        }
+        
+        // Apply texture if defined
+        if (!body->texturePath.empty()) {
+            rigidBodyRenderer->setBodyTexture(*body, body->texturePath);
+        }
     }
 }
 
-void SimViewer::createMarbleBox()
-{
-    Scenarios::createMarbleBox(*m_rigidBodySystem);
-    m_resetState->save(*m_rigidBodySystem);
-    updateRigidBodyMeshes(*m_rigidBodySystem);
-    polyscope::resetScreenshotIndex();
+void SimViewer::preStep(RigidBodySystem& system, float h) {
+    // Skip if geometric stiffness damping is disabled
+    if (!geometricStiffnessDamping) return;
+    
+    auto& bodies = system.getBodies();
+    auto& joints = system.getJoints();
+    auto& contacts = system.getContacts();
+
+    // Reset geometric stiffness damping values.
+    for (auto b : bodies)
+        b->gsDamp.setZero();
+
+    // Recompute geometric stiffness damping.
+    // The damping will be added to the bodies' inertia matrices during integration.
+    for (auto j : joints) {
+        j->computeGeometricStiffness();
+        j->body0->gsSum += j->G0;
+        j->body1->gsSum += j->G1;
+    }
+
+    for (auto c : contacts) {
+        c->computeGeometricStiffness();
+        c->body0->gsSum += c->G0;
+        c->body1->gsSum += c->G1;
+    }
+
+    for (auto b : system.getBodies()) {
+        if (b->fixed)
+            continue;
+
+        for (int c = 0; c < 3; c++) {
+            const float m = b->I(c, c);
+            const float k = 2.0f * b->gsSum.col(c + 3).norm();
+            b->gsDamp(c) = std::max(0.0f, h * h * k - 4 * alpha * m);
+        }
+        // Update inertia matrix so solver has most recent gs damping information
+        b->updateInertiaMatrix();
+    }
 }
 
-void SimViewer::createSphereOnBox()
-{
-    Scenarios::createSphereOnBox(*m_rigidBodySystem);
-    m_resetState->save(*m_rigidBodySystem);
-    updateRigidBodyMeshes(*m_rigidBodySystem);
-    polyscope::resetScreenshotIndex();
+void SimViewer::computePerformanceMetrics() {
+    // Compute kinetic energy
+    kineticEnergy = 0.0f;
+    for (RigidBody* b : rigidBodySystem->getBodies()) {
+        const auto I = b->q * b->Ibody * b->q.inverse();
+        kineticEnergy += 0.5f * (b->mass * b->xdot.squaredNorm() + b->omega.dot(I * b->omega));
+    }
+    
+    // Compute constraint error
+    constraintError = 0.0f;
+    for (Joint* j : rigidBodySystem->getJoints()) {
+        constraintError += j->phi.lpNorm<1>();
+    }
+    
+    // Log values if enabled
+    if (enableLogging) {
+        s_log.pushVal(s_kinEnergyIdx, kineticEnergy);
+        s_log.pushVal(s_substepsIdx, static_cast<float>(substeps));
+    }
 }
 
-void SimViewer::createSwingingBox()
-{
-    Scenarios::createSwingingBoxes(*m_rigidBodySystem);
-    m_resetState->save(*m_rigidBodySystem);
-    updateRigidBodyMeshes(*m_rigidBodySystem);
-    polyscope::resetScreenshotIndex();
-}
-
-void SimViewer::createCylinderOnPlane()
-{
-    Scenarios::createCylinderOnPlane(*m_rigidBodySystem);
-    m_resetState->save(*m_rigidBodySystem);
-    updateRigidBodyMeshes(*m_rigidBodySystem);
-    polyscope::resetScreenshotIndex();
-}
-
-void SimViewer::createCarScene()
-{
-    Scenarios::createCarScene(*m_rigidBodySystem);
-    m_resetState->save(*m_rigidBodySystem);
-    updateRigidBodyMeshes(*m_rigidBodySystem);
-    polyscope::resetScreenshotIndex();
-}
-
-void SimViewer::preStep(std::vector<RigidBody*>& _bodies)
-{
-    // do something useful here?
-}
+} // namespace slrbs

@@ -1,0 +1,91 @@
+site_name: SLRBS Documentation
+site_description: Documentation for the Simple Lightweight Rigid Body Simulator
+site_author: SLRBS Team
+repo_url: https://github.com/username/slrbs
+
+theme:
+  name: material
+  palette:
+    primary: indigo
+    accent: blue
+  icon:
+    logo: material/cube-outline
+  features:
+    - navigation.tabs
+    - navigation.expand
+    - navigation.indexes
+    - content.code.annotate
+
+markdown_extensions:
+  - pymdownx.highlight
+  - pymdownx.superfences
+  - pymdownx.inlinehilite
+  - pymdownx.tabbed
+  - pymdownx.arithmatex:
+      generic: true
+  - admonition
+  - footnotes
+  - toc:
+      permalink: true
+
+extra_javascript:
+  - javascripts/mathjax.js
+  - https://polyfill.io/v3/polyfill.min.js?features=es6
+  - https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js
+
+plugins:
+  - search
+  - mkdocstrings:
+      handlers:
+        python:
+          selection:
+            docstring_style: google
+  - git-revision-date-localized:
+      type: date
+
+nav:
+  - Home: index.md
+  - Getting Started:
+    - Installation: getting-started/installation.md
+    - Quick Start: getting-started/quick-start.md
+    - Basic Usage: getting-started/basic-usage.md
+  - User Guide:
+    - User Interface: user-guide/user-interface.md
+    - Creating Scenarios: user-guide/creating-scenarios.md
+    - Working with Materials: user-guide/materials.md
+    - Visualization: user-guide/visualization.md
+    - Texturing: user-guide/texturing.md
+  - Technical Documentation:
+    - Architecture: technical/architecture.md
+    - Rigid Body System: technical/rigid-body-system.md
+    - Contact Detection: technical/contact-detection.md
+    - Solvers:
+      - Overview: technical/solvers/overview.md
+      - PGS: technical/solvers/pgs.md
+      - Conjugate Gradient: technical/solvers/conjugate-gradient.md
+      - Conjugate Residual: technical/solvers/conjugate-residual.md
+      - BPP: technical/solvers/bpp.md
+      - PGSSM: technical/solvers/pgssm.md
+    - Joints:
+      - Overview: technical/joints/overview.md
+      - Spherical: technical/joints/spherical.md
+      - Hinge: technical/joints/hinge.md
+      - Distance: technical/joints/distance.md
+      - Prismatic: technical/joints/prismatic.md
+      - Universal: technical/joints/universal.md
+  - File Formats:
+    - Scenario JSON Format: file-formats/scenario-json.md
+    - Textures: file-formats/textures.md
+    - Models: file-formats/models.md
+  - API Reference:
+    - Core: api/core.md
+    - Renderer: api/renderer.md
+    - Simulation: api/simulation.md
+    - Utils: api/utils.md
+  - Examples:
+    - Car Scenario: examples/car-scenario.md
+    - Rope Bridge: examples/rope-bridge.md
+    - Marble Box: examples/marble-box.md
+    - Swinging Boxes: examples/swinging-boxes.md
+  - Contributing: contributing.md
+  - Changelog: changelog.md

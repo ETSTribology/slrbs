@@ -3,6 +3,9 @@
 #include "contact/Contact.h"
 #include "rigidbody/RigidBody.h"
 #include "rigidbody/RigidBodySystem.h"
+#include "utils/Serializer.h"
+#include <chrono>
+#include <filesystem>
 #include <utility> 
 
 namespace {
@@ -302,65 +305,146 @@ namespace {
     }
 }
 
-SolverProximal::SolverProximal(RigidBodySystem* _rigidBodySystem) : Solver(_rigidBodySystem)
+SolverProximal::SolverProximal(RigidBodySystem* _rigidBodySystem) 
+    : Solver(_rigidBodySystem)
 {
-
+    // Default configuration
 }
 
-void SolverProximal::setCSV(std::ofstream& fileName, char* filePath)
+SolverProximal::~SolverProximal() 
 {
-    m_path = filePath;
-    m_file = &fileName;
+    // Ensure data logger is properly closed
 }
 
-void SolverProximal::writeCSV(std::ofstream& fileName, char* filePath)
+void SolverProximal::enableDataExport(bool enable) 
 {
-    fileName.open(filePath, std::ios::out | std::ios::app);
+    m_exportEnabled = enable;
+}
+
+void SolverProximal::setExportPath(const std::string& basePath) 
+{
+    m_exportBasePath = basePath;
+    
+    // Create directory if it doesn't exist
+    std::filesystem::create_directories(m_exportBasePath);
+}
+
+void SolverProximal::setLogEnabled(LogType type, bool enabled) 
+{
+    m_logEnabled[type] = enabled;
+}
+
+void SolverProximal::initializeDataLogger(const std::string& exampleName)
+{
+    m_dataLogger = std::make_unique<slrbs::SimDataLogger>();
+    m_dataLogger->initialize(m_exportBasePath);
+    m_dataLogger->startLogging(exampleName + "_prox");
+}
+
+void SolverProximal::exportMatrices(const std::vector<Eigen::Matrix3f>& A, const std::vector<Contact*>& contacts) 
+{
+    if (!m_exportEnabled || !m_logEnabled[LogType::MATRICES] || !m_dataLogger)
+        return;
+        
+    for (size_t i = 0; i < A.size(); i++) {
+        m_dataLogger->logMatrix3f("A_" + std::to_string(i), A[i]);
+        
+        Contact* c = contacts[i];
+        if (c) {
+            m_dataLogger->logVector<Eigen::Matrix<float, 3, 6>>("J0_" + std::to_string(i), c->J0);
+            m_dataLogger->logVector<Eigen::Matrix<float, 3, 6>>("J1_" + std::to_string(i), c->J1);
+            m_dataLogger->logVector<Eigen::Matrix<float, 3, 6>>("J0Minv_" + std::to_string(i), c->J0Minv);
+            m_dataLogger->logVector<Eigen::Matrix<float, 3, 6>>("J1Minv_" + std::to_string(i), c->J1Minv);
+            m_dataLogger->logScalar("Phi_" + std::to_string(i), c->phi);
+            m_dataLogger->logScalar("Mu_" + std::to_string(i), c->mu);
+        }
+    }
+}
+
+void SolverProximal::exportActiveConstraints(const std::vector<Eigen::Vector3f>& lambdaCandidate, float mu) 
+{
+    if (!m_exportEnabled || !m_logEnabled[LogType::ACTIVE_CONSTRAINTS] || !m_dataLogger)
+        return;
+        
+    int activeCount = countActiveConstraints(lambdaCandidate, mu);
+    int totalConstraints = lambdaCandidate.size() * 3;
+    
+    m_dataLogger->logInt("ActiveConstraints", activeCount);
+    m_dataLogger->logInt("InactiveConstraints", totalConstraints - activeCount);
+    m_dataLogger->logInt("TotalConstraints", totalConstraints);
+}
+
+void SolverProximal::exportResidual(float residualNorm) 
+{
+    if (!m_exportEnabled || !m_logEnabled[LogType::RESIDUAL] || !m_dataLogger)
+        return;
+        
+    m_dataLogger->logScalar("ResidualNorm", residualNorm);
+}
+
+void SolverProximal::exportLCPError(float lcpError) 
+{
+    if (!m_exportEnabled || !m_logEnabled[LogType::LCP_ERROR] || !m_dataLogger)
+        return;
+        
+    m_dataLogger->logScalar("LCPError", lcpError);
+}
+
+void SolverProximal::exportRValues(const std::vector<Eigen::MatrixXf>& R) 
+{
+    if (!m_exportEnabled || !m_logEnabled[LogType::MATRIX_R] || !m_dataLogger)
+        return;
+        
+    float sumR = 0.0f;
+    for (size_t i = 0; i < R.size(); i++) {
+        for (int j = 0; j < R[i].rows(); j++) {
+            sumR += R[i](j, j);
+        }
+        
+        m_dataLogger->logMatrix("R_" + std::to_string(i), R[i]);
+    }
+    
+    m_dataLogger->logScalar("SumR", sumR);
+}
+
+void SolverProximal::exportPerformanceData(double solveTimeMs, int iterations) 
+{
+    if (!m_exportEnabled || !m_logEnabled[LogType::PERFORMANCE] || !m_dataLogger)
+        return;
+        
+    m_dataLogger->logScalar("SolveTimeMs", static_cast<float>(solveTimeMs));
+    m_dataLogger->logInt("Iterations", iterations);
 }
 
 void SolverProximal::solve(float h)
 {
-    // Files for evaluating the matrices:
-    const static Eigen::IOFormat CSVFormat(Eigen::StreamPrecision, Eigen::DontAlignCols, ", ", "\n");
+    // Setup timing measurement
+    auto startTime = std::chrono::high_resolution_clock::now();
+    int iterations = 0;
     
-    /*
-    std::string example_name = "marble_box";
-    std::string solver_name = "prox";
-    std::string R_strategy = "local_A";
-
-    std::ofstream prox_lcp_error;
-    std::string prox_lcp_error_string = solver_name + "_lcp_error_" + R_strategy + example_name + ".csv";
-    char* prox_lcp_error_str = &prox_lcp_error_string[0];
-    setCSV(prox_lcp_error, prox_lcp_error_str);
-    writeCSV(*m_file, m_path);
-
-    std::ofstream prox_residual;
-    std::string prox_residual_string = solver_name + "_residual_" + example_name + ".csv";
-    char* prox_residual_str = &prox_residual_string[0];
-    prox_residual.open(prox_residual_str, std::ios::out | std::ios::app);
-
-    // Sequence of R
-    std::ofstream proxR;
-    std::string proxR_string = solver_name + "_R_" + example_name + ".csv";
-    char* proxR_str = &proxR_string[0];
-    proxR.open(proxR_str, std::ios::out | std::ios::app);
-    // Sequence of active set
-    std::ofstream proxActiveSet;
-    std::string proxActiveSet_string = solver_name + "_active_set_" + example_name + ".csv";
-    char* proxActiveSet_str = &proxActiveSet_string[0];
-    proxActiveSet.open(proxActiveSet_str, std::ios::out | std::ios::app);
-    // Sequence of inactive set
-    std::ofstream proxInActiveSet;
-    std::string proxInActiveSet_string = solver_name + "_inactive_set_" + example_name + ".csv";
-    char* proxInActiveSet_str = &proxInActiveSet_string[0];
-    proxInActiveSet.open(proxInActiveSet_str, std::ios::out | std::ios::app);
-    */
+    // Initialize data export if enabled
+    if (m_exportEnabled && !m_dataLogger) {
+        initializeDataLogger("simulation");
+    }
+    
+    if (m_exportEnabled && m_dataLogger) {
+        m_dataLogger->beginFrame();
+    }
 
     std::vector<Contact*>& contacts = m_rigidBodySystem->getContacts();
     std::vector<RigidBody*>& bodies = m_rigidBodySystem->getBodies();
     const int numBodies = bodies.size();
     const int numContacts = contacts.size();
     int frameId = m_rigidBodySystem->m_frameCounter;
+    
+    // Export basic frame data
+    if (m_exportEnabled && m_dataLogger) {
+        m_dataLogger->logInt("FrameId", frameId);
+        m_dataLogger->logInt("NumBodies", numBodies);
+        m_dataLogger->logInt("NumContacts", numContacts);
+        m_dataLogger->logScalar("TimeStep", h);
+    }
+    
     // Give an identifier to each body to be able to index the w matrix
     for (int i = 0; i < numBodies; i++) {
         bodies[i]->index = i;
@@ -393,8 +477,6 @@ void SolverProximal::solve(float h)
                 A[i](j, j) += 1.0f / (h * h * c->k + h * c->b); // constraint force mixing
             }
 
-            // std::cout << "h:" << h << std::endl;
-
             if (!c->body0->fixed)
             {
                 A[i] += c->J0Minv * c->J0.transpose();
@@ -415,6 +497,11 @@ void SolverProximal::solve(float h)
             coeffs[i][1] = c->mu;
             coeffs[i][2] = c->mu;
             coeffs[i][3] = c->mu;
+        }
+        
+        // Export matrices if enabled
+        if (m_exportEnabled && m_logEnabled[LogType::MATRICES] && m_dataLogger) {
+            exportMatrices(A, contacts);
         }
     }
 
@@ -441,124 +528,9 @@ void SolverProximal::solve(float h)
 
         initializeR(A, R, nu);
 
-        std::cout << "The number of frame: " << frameId << std::endl;
-
-        for (int iter = 0; iter < m_maxIter; ++iter) {
-
-            if (iter == m_maxIter - 1 && frameId == 25)
-            {
-                std::cout << "It cannot converge!" << std::endl;
-            }
-
+        for (iterations = 0; iterations < m_maxIter; ++iterations) {
             for (int i = 0; i < numBodies; i++) {
                 w[i] = Eigen::VectorXf::Zero(6);
-            }
-
-            if (iter == 0)
-            {
-                //prox_lcp_error << 0.5f << ",";
-            }
-
-            if (frameId == 4) // && iter == 50)
-            {
-                // // Number of contacts and bodies
-                // std::ofstream dimension;
-                // dimension.open("dimension.csv", std::ios::out | std::ios::app);
-                // dimension << "Contact Number: " << numContacts << "\n";
-                // dimension << "Body Number: " << numBodies << "\n";
-
-                // Contact data
-                for (int i = 0; i < numContacts; ++i)
-                {
-                    Contact* c = contacts[i];
-
-                    /*std::ofstream contactIndex;
-                    contactIndex.open("contactIndex.csv", std::ios::out | std::ios::app);
-                    contactIndex << c->index << "\n";*/
-
-                    // std::ofstream matrixPhi;
-                    // matrixPhi.open("Phi.csv", std::ios::out | std::ios::app);
-                    // matrixPhi << c->phi << "\n";
-
-                    // std::ofstream matrixJ0;
-                    // matrixJ0.open("J0.csv", std::ios::out | std::ios::app);
-                    // matrixJ0 << c->J0 << "\n";
-
-                    // std::ofstream matrixJ0Minv;
-                    // matrixJ0Minv.open("J0Minv.csv", std::ios::out | std::ios::app);
-                    // matrixJ0Minv << c->J0Minv << "\n";
-
-                    // std::ofstream matrixMinvJ0T;
-                    // matrixMinvJ0T.open("MinvJ0T.csv", std::ios::out | std::ios::app);
-                    // matrixMinvJ0T << c->MinvJ0T << "\n";                    
-
-                    // std::ofstream matrixJ1;
-                    // matrixJ1.open("J1.csv", std::ios::out | std::ios::app);
-                    // matrixJ1 << c->J1 << "\n";
-
-                    // std::ofstream matrixJ1Minv;
-                    // matrixJ1Minv.open("J1Minv.csv", std::ios::out | std::ios::app);
-                    // matrixJ1Minv << c->J1Minv << "\n";
-
-                    // std::ofstream matrixMinvJ1T;
-                    // matrixMinvJ1T.open("MinvJ1T.csv", std::ios::out | std::ios::app);
-                    // matrixMinvJ1T << c->MinvJ1T << "\n";                 
-
-                    // std::ofstream matrixbody;
-                    // matrixbody.open("body.csv", std::ios::out | std::ios::app);
-                    // matrixbody << c->body0->index << "," << c->body1->index << "\n";
-
-                    /*std::ofstream matrixxdot1;
-                    matrixxdot1.open("xdot1.csv", std::ios::out | std::ios::app);
-                    matrixxdot1 << c->body1->xdot << "\n";
-
-                    std::ofstream matrixomega1;
-                    matrixomega1.open("omega1.csv", std::ios::out | std::ios::app);
-                    matrixomega1 << c->body1->omega << "\n";
-
-                    std::ofstream matrixf1;
-                    matrixf1.open("f1.csv", std::ios::out | std::ios::app);
-                    matrixf1 << c->body1->f << "\n";
-
-                    std::ofstream matrixtau1;
-                    matrixtau1.open("tau1.csv", std::ios::out | std::ios::app);
-                    matrixtau1 << c->body1->tau << "\n";*/
-
-                    // body 1 is always fixed so body 0 is not fixed.
-                    /*if (c->body1->fixed)
-                        std::cout << 1 << std::endl;*/
-                }
-
-                // Body data
-                for (int i = 0; i < numBodies; ++i)
-                {
-                    RigidBody* body = bodies[i];
-
-                    std::ofstream bodyIndex;
-                    bodyIndex.open("bodyIndex.csv", std::ios::out | std::ios::app);
-                    bodyIndex << body->index << "\n";
-
-                    std::ofstream fixed;
-                    fixed.open("fixed.csv", std::ios::out | std::ios::app);
-                    fixed << body->fixed << "\n";
-
-                    std::ofstream matrixxdot;
-                    matrixxdot.open("xdot.csv", std::ios::out | std::ios::app);
-                    matrixxdot << body->xdot << "\n";
-
-                    std::ofstream matrixomega;
-                    matrixomega.open("omega.csv", std::ios::out | std::ios::app);
-                    matrixomega << body->omega << "\n";
-
-                    std::ofstream matrixf;
-                    matrixf.open("f.csv", std::ios::out | std::ios::app);
-                    matrixf << body->f << "\n";
-
-                    std::ofstream matrixtau;
-                    matrixtau.open("tau.csv", std::ios::out | std::ios::app);
-                    matrixtau << body->tau << "\n";
-
-                }
             }
 
             // Initialize w = Minv * JT * lambda_k
@@ -574,7 +546,6 @@ void SolverProximal::solve(float h)
                     contacts[i]->J0, contacts[i]->J1);
 
                 proxN(z_k, lambdaCandidate[i]);
-
                 proxF(z_k, lambdaCandidate[i], coeffs[i]);
 
                 residual[i] = lambdaCandidate[i] - lambdasContacts[i];
@@ -584,12 +555,17 @@ void SolverProximal::solve(float h)
                 updateW(w[contacts[i]->body1->index], contacts[i]->MinvJ1T, residual[i]);
             }
 
-            // Export the number of the constraints in active or inactive set;
-            int num_active = countActiveConstraints(lambdaCandidate, 0.4f);
-            int num_inactive = 3 * numContacts - num_active;
+            // Export active constraints data if enabled
+            if (m_exportEnabled && m_logEnabled[LogType::ACTIVE_CONSTRAINTS] && m_dataLogger) {
+                exportActiveConstraints(lambdaCandidate, 0.4f);
+            }
 
             residual_norm = infiniteNorm(residual);
-            //prox_residual << residual_norm << ",";
+            
+            // Export residual data if enabled
+            if (m_exportEnabled && m_logEnabled[LogType::RESIDUAL] && m_dataLogger) {
+                exportResidual(residual_norm);
+            }
 
             // Check for convergence for early termination
             if (residual_norm < absolute_threshold)
@@ -612,25 +588,11 @@ void SolverProximal::solve(float h)
                     lambdasContacts[j] = lambdaCandidate[j];
                 }
             }
-
-            // Export R 
-            /*float sumR = 0.0f;
-            for (int i = 0; i < R.size(); ++i)
-            {
-                int numCol = R[i].cols();
-                int numRow = R[i].rows();
-                // Only count the diagonal elements
-                for (int j = 0; j < numRow; ++j)
-                {
-                    sumR += R[i](j, j);
-                }                                
-            }   
-            //proxR << sumR << ",";
-
-            //proxActiveSet << num_active << ",";
-            //proxInActiveSet << num_inactive << ",";
-
-            //(*m_file) << lcpError << ",";*/
+            
+            // Export R values if enabled
+            if (m_exportEnabled && m_logEnabled[LogType::MATRIX_R] && m_dataLogger && iterations % 10 == 0) {
+                exportRValues(R);
+            }
         }
 
         // Calculate average LCP error at the end
@@ -640,31 +602,35 @@ void SolverProximal::solve(float h)
             if (!c) continue;
             
             // Compute w = A * lambda + b for LCP error
-            Eigen::Vector3f w = A[i] * c->lambda + b[i];
-            total_lcp_error += computeLCPError(c->lambda, A[i], w, c->mu);
+            Eigen::Vector3f w_lcp = A[i] * c->lambda + b[i];
+            total_lcp_error += computeLCPError(c->lambda, A[i], w_lcp, c->mu);
         }
         float avg_lcp_error = numContacts > 0 ? total_lcp_error / numContacts : 0.0f;
-        std::cout << "PROX Average LCP Error: " << avg_lcp_error << std::endl;
+        
+        // Export LCP error if enabled
+        if (m_exportEnabled && m_logEnabled[LogType::LCP_ERROR] && m_dataLogger) {
+            exportLCPError(avg_lcp_error);
+        }
 
         // Set the new lambdas to the old contact lambdas
         for (int i = 0; i < lambdasContacts.size(); i++) {
             contacts[i]->lambda = lambdasContacts[i];
         }
+        
+        // Report convergence information for debugging
+        std::cout << "PROX solver: " << iterations << " iterations, error: " << avg_lcp_error << std::endl;
     }
-
-    /*// End of the frame
-    proxR << "\n";
-    proxR.close();
-
-    proxActiveSet << "\n";
-    proxActiveSet.close();
-
-    proxInActiveSet << "\n";
-    proxInActiveSet.close();
-
-    prox_residual << "\n";
-    prox_residual.close();
-
-    (*m_file) << "\n";
-    (*m_file).close();*/
+    
+    // Calculate solve time and export performance data
+    auto endTime = std::chrono::high_resolution_clock::now();
+    double solveTimeMs = std::chrono::duration<double, std::milli>(endTime - startTime).count();
+    
+    if (m_exportEnabled && m_logEnabled[LogType::PERFORMANCE] && m_dataLogger) {
+        exportPerformanceData(solveTimeMs, iterations);
+    }
+    
+    // End frame in data file if enabled
+    if (m_exportEnabled && m_dataLogger) {
+        m_dataLogger->endFrame();
+    }
 }

@@ -1,0 +1,48 @@
+name: Emscripten Build
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  emscripten:
+    name: Build WebAssembly
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v3
+      with:
+        submodules: recursive
+        fetch-depth: 0
+        
+    - name: Setup Emscripten
+      uses: mymindstorm/setup-emsdk@v11
+      with:
+        version: 'latest'
+        
+    - name: Verify Emscripten
+      run: emcc --version
+        
+    - name: Install CMake
+      uses: lukka/get-cmake@latest
+      with:
+        cmakeVersion: '3.25.0'
+        
+    - name: Configure CMake
+      run: cmake --preset emscripten
+      
+    - name: Build
+      run: cmake --build build/web
+      
+    - name: Upload Web Build
+      uses: actions/upload-artifact@v3
+      with:
+        name: slrbs-web
+        path: |
+          ${{github.workspace}}/build/web/slrbs.html
+          ${{github.workspace}}/build/web/slrbs.js
+          ${{github.workspace}}/build/web/slrbs.wasm
+        if-no-files-found: error

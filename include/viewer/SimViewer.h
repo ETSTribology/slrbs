@@ -1,63 +1,100 @@
 #pragma once
 
-/**
- * @file SimViewer.h
- *
- * @brief Viewer for a cloth simulation application.
- *
- */
-
-#include "util/Types.h"
+#include "viewer/ViewerConfig.h"
 #include <memory>
-#include <vector>
+#include <string>
+#include <functional>
 
-namespace polyscope
-{
-    class SurfaceMesh;
-    class PointCloud;
-}
+struct GLFWwindow;
 
-class Contact;
+namespace slrbs {
+
+class ViewerUI;
+class ViewerInteraction;
+class ScenarioManager;
+class SimulationManager;
 class RigidBodySystem;
-class RigidBody;
-class RigidBodyState;
 class RigidBodySystemState;
+class RigidBodyRenderer;
 
-
-class SimViewer 
-{
+/**
+ * @class SimViewer
+ * @brief Main viewer class for the rigid body simulation application.
+ */
+class SimViewer {
 public:
     SimViewer();
-    virtual ~SimViewer();
+    ~SimViewer();
 
-    void start();
+    // Main functions
+    void initialize();
+    void run();
+    void shutdown();
+    
+    // Simulation control
     void reset();
     void save();
+    void loadScenario(int scenarioType);
+    
+    // Geometric stiffness damping
+    void preStep(RigidBodySystem& system, float h);
 
-private:
-    void createMarbleBox();
-    void createSphereOnBox();
-    void createSwingingBox();
-    void createCylinderOnPlane();
-    void createCarScene();
+    // Access to components
+    ViewerConfig& getConfig() { return config; }
+    const ViewerConfig& getConfig() const { return config; }
+    ViewerInteraction& getInteraction() { return *interaction; }
+    ScenarioManager& getScenarioManager() { return *scenarioManager; }
+    SimulationManager& getSimulation() { return *simulationManager; }
+    RigidBodySystem& getRigidBodySystem() { return *rigidBodySystem; }
+    RigidBodyRenderer& getRenderer() { return *rigidBodyRenderer; }
 
-    void draw();
+    // GUI functionality
     void drawGUI();
-
-    void preStep(std::vector<RigidBody*>&);
+    
+    // Performance metrics
+    void computePerformanceMetrics();
 
 private:
-
+    // Main rendering loop
+    void mainLoop();
+    void render();
+    
+    // Initialize components
+    void setupPolyscope();
+    void setupWindow();
+    
+    // Member variables
+    ViewerConfig config;
+    GLFWwindow* window;
+    
+    // Components
+    std::unique_ptr<ViewerUI> ui;
+    std::unique_ptr<ViewerInteraction> interaction;
+    std::unique_ptr<ScenarioManager> scenarioManager;
+    std::unique_ptr<SimulationManager> simulationManager;
+    std::unique_ptr<RigidBodySystem> rigidBodySystem;
+    std::unique_ptr<RigidBodyRenderer> rigidBodyRenderer;
+    
+    // Simulation state backup for resets
+    std::unique_ptr<RigidBodySystemState> resetState;
+    
     // Simulation parameters
-    float m_dt;                         // Time step parameter.
-    int m_subSteps;
-    bool m_paused;                      // Pause the simulation.
-    bool m_stepOnce;                    // Advance the simulation by one frame and then stop.
-    bool m_enableCollisions;            // enable/disable collisions
-    bool m_enableScreenshots;           // enable/disable saving screenshots
-    bool m_drawContacts;                // enable drawing contacts
-    bool m_drawConstraints;             // enable constraint viz
-    float m_dynamicsTime;               // Compute time for the dynamics step (in ms)
-    std::unique_ptr<RigidBodySystemState> m_resetState;
-
+    bool adaptiveTimesteps = false;
+    bool geometricStiffnessDamping = false;
+    float alpha = 0.01f;
+    float timeStep = 0.01667f;  // Default to ~60fps
+    int substeps = 1;
+    bool paused = true;
+    bool stepOnce = false;
+    bool enableCollisions = true;
+    bool enableScreenshots = false;
+    bool enableLogging = false;
+    
+    // Performance metrics
+    float dynamicsTime = 0.0f;
+    int frameCounter = 0;
+    float kineticEnergy = 0.0f;
+    float constraintError = 0.0f;
 };
+
+} // namespace slrbs

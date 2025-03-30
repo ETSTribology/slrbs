@@ -35,6 +35,9 @@ public:
     // Returns the rigid body linear velocity evaluated at world position @a pos
     void getVelocityAtPos(const Eigen::Vector3f& pos, Eigen::Vector3f& vel);
 
+    // Get dimensions/extents of the object for bounding box visualization
+    Eigen::Vector3f getExtents() const;
+
     bool fixed;                         // Flag for a static rigid body. Default is 'false'.
     float mass;                         // Mass.
     Eigen::Matrix3f I, Iinv;            // Inertia and inverse inertia matrix (global)
@@ -49,6 +52,18 @@ public:
 
     Eigen::Vector3f fc;                 // Linear constraint force.
     Eigen::Vector3f tauc;               // Angular constraint force
+    
+    Eigen::Vector3f color;              // Color for visualization
+    std::string name;                   // Unique name for the body
+    std::string texturePath;            // Path to texture file
+    std::string materialName;           // Name of material to apply from library
+
+    // For geometric stiffness damping
+    Eigen::Matrix<float, 6, 6> gsSum;   // Sum of geometric stiffness matrices
+    Eigen::Vector3f gsDamp;             // Geometric stiffness damping
+
+    // Unique index used for identification in solver
+    int index = -1;
 
     std::unique_ptr<Geometry> geometry; // The geometry of the rigid body.
     std::vector<Contact*> contacts;     // Pointer array of contact constraints involving this body.
@@ -56,5 +71,7 @@ public:
 
     polyscope::SurfaceMesh* mesh;       // Used for rendering
 
-
+    // Mesh vertices and faces data
+    std::vector<Eigen::Vector3f> meshV;
+    std::vector<Eigen::Vector3i> meshF;
 };

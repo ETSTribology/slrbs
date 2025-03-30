@@ -32,6 +32,7 @@
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Release"
       }
+    }
     },
     {
       "name": "linux-base",
@@ -60,6 +61,14 @@
       }
     },
     {
+      "name": "linux-python",
+      "displayName": "Linux Python Bindings",
+      "inherits": "linux-release",
+      "cacheVariables": {
+        "BUILD_PYTHON_BINDINGS": "ON"
+      }
+    },
+    {
       "name": "macos-base",
       "hidden": true,
       "generator": "Xcode",
@@ -84,6 +93,83 @@
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Release"
       }
+    },
+    {
+      "name": "macos-python",
+      "displayName": "macOS Python Bindings",
+      "inherits": "macos-release",
+      "cacheVariables": {
+        "BUILD_PYTHON_BINDINGS": "ON"
+      }
+    },
+    {
+      "name": "emscripten",
+      "displayName": "Emscripten",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/web",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "CMAKE_TOOLCHAIN_FILE": "$env{EMSDK}/upstream/emscripten/cmake/Modules/Platform/Emscripten.cmake",
+        "BUILD_PYTHON_BINDINGS": "OFF"
+      },
+      "environment": {
+        "EMSCRIPTEN": "1"
+      }
+    }
+  ],
+  "buildPresets": [
+    {
+      "name": "windows-debug",
+      "displayName": "Windows Debug",
+      "configurePreset": "windows-debug",
+      "configuration": "Debug"
+    },
+    {
+      "name": "windows-release",
+      "displayName": "Windows Release",
+      "configurePreset": "windows-release",
+      "configuration": "Release"
+    },
+    {
+      "name": "windows-python",
+      "displayName": "Windows Python Bindings",
+      "configurePreset": "windows-python",
+      "configuration": "Release"
+    },
+    {
+      "name": "linux-debug",
+      "displayName": "Linux Debug",
+      "configurePreset": "linux-debug"
+    },
+    {
+      "name": "linux-release",
+      "displayName": "Linux Release",
+      "configurePreset": "linux-release"
+    },
+    {
+      "name": "linux-python",
+      "displayName": "Linux Python Bindings",
+      "configurePreset": "linux-python"
+    },
+    {
+      "name": "macos-debug",
+      "displayName": "macOS Debug",
+      "configurePreset": "macos-debug"
+    },
+    {
+      "name": "macos-release",
+      "displayName": "macOS Release",
+      "configurePreset": "macos-release"
+    },
+    {
+      "name": "macos-python",
+      "displayName": "macOS Python Bindings",
+      "configurePreset": "macos-python"
+    },
+    {
+      "name": "emscripten",
+      "displayName": "Emscripten Web Build",
+      "configurePreset": "emscripten"
     }
   ]
 }

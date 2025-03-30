@@ -1,0 +1,42 @@
+{
+    "window": {
+        "width": 1200,
+        "height": 800,
+        "title": "SLRBS Simulator",
+        "fullscreen": false
+    },
+    "camera": {
+        "fieldOfView": 45.0,
+        "nearClipPlane": 0.1,
+        "farClipPlane": 1000.0,
+        "orbitRadius": 10.0,
+        "orbitPitch": 30.0,
+        "orbitYaw": 0.0,
+        "target": {
+            "x": 0.0,
+            "y": 0.0,
+            "z": 0.0
+        }
+    },
+    "rendering": {
+        "backgroundColor": {
+            "r": 0.2,
+            "g": 0.3,
+            "b": 0.3
+        },
+        "showGrid": true,
+        "showAxes": true,
+        "pointSize": 0.05,
+        "lineWidth": 0.02
+    },
+    "debug": {
+        "showContacts": true,
+        "showContactNormals": true,
+        "showJoints": true,
+        "showBoundingBoxes": false
+    },
+    "performance": {
+        "vsync": true,
+        "targetFrameRate": 60
+    }
+}
