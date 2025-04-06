@@ -72,12 +72,4 @@ jobs:
         elif [ "${{ matrix.config.os }}" == "windows-latest" ]; then
           cmake --build --preset windows-msvc-release
         fi
-        
-    - name: Archive build artifacts
-      uses: actions/upload-artifact@v3
-      with:
-        name: slrbs-${{ matrix.config.os }}
-        path: |
-          ${{github.workspace}}/build/**/slrbs*
-          !${{github.workspace}}/build/**/*.o
-          !${{github.workspace}}/build/**/*.obj
+
