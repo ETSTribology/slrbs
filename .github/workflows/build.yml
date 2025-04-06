@@ -51,6 +51,12 @@ jobs:
       run: |
         brew install cmake
 
+    - name: Install Dependencies (Windows)
+      if: matrix.config.os == 'windows-latest'
+      run: |
+        choco install ninja cmake
+        echo "C:\ProgramData\chocolatey\lib\ninja\tools" >> $GITHUB_PATH
+
     - name: Configure CMake
       shell: bash
       run: |
