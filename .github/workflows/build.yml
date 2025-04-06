@@ -1,1 +1,83 @@
+name: Build
 
+on:
+  push:
+    branches: [ main, master, github ]
+  pull_request:
+    branches: [ main, master, github ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: ${{ matrix.config.name }}
+    runs-on: ${{ matrix.config.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        config:
+          - {
+            name: "Ubuntu Latest GCC",
+            os: ubuntu-latest,
+            build_type: "Release",
+            cc: "gcc",
+            cxx: "g++"
+          }
+          - {
+            name: "macOS Latest Clang",
+            os: macos-latest,
+            build_type: "Release",
+            cc: "clang",
+            cxx: "clang++"
+          }
+          - {
+            name: "Windows Latest MSVC",
+            os: windows-latest,
+            build_type: "Release",
+            cc: "cl",
+            cxx: "cl"
+          }
+
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Install Dependencies (Ubuntu)
+      if: matrix.config.os == 'ubuntu-latest'
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y cmake libgl1-mesa-dev xorg-dev
+
+    - name: Install Dependencies (macOS)
+      if: matrix.config.os == 'macos-latest'
+      run: |
+        brew install cmake
+
+    - name: Configure CMake
+      shell: bash
+      run: |
+        if [ "${{ matrix.config.os }}" == "ubuntu-latest" ]; then
+          cmake --preset linux-gcc-release
+        elif [ "${{ matrix.config.os }}" == "macos-latest" ]; then
+          cmake --preset macos-clang-release
+        elif [ "${{ matrix.config.os }}" == "windows-latest" ]; then
+          cmake --preset windows-msvc-release
+        fi
+
+    - name: Build
+      shell: bash
+      run: |
+        if [ "${{ matrix.config.os }}" == "ubuntu-latest" ]; then
+          cmake --build --preset linux-gcc-release
+        elif [ "${{ matrix.config.os }}" == "macos-latest" ]; then
+          cmake --build --preset macos-clang-release
+        elif [ "${{ matrix.config.os }}" == "windows-latest" ]; then
+          cmake --build --preset windows-msvc-release
+        fi
+        
+    - name: Archive build artifacts
+      uses: actions/upload-artifact@v3
+      with:
+        name: slrbs-${{ matrix.config.os }}
+        path: |
+          ${{github.workspace}}/build/**/slrbs*
+          !${{github.workspace}}/build/**/*.o
+          !${{github.workspace}}/build/**/*.obj
