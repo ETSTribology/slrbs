@@ -1,0 +1,271 @@
+{
+  "version": 3,
+  "cmakeMinimumRequired": {
+    "major": 3,
+    "minor": 21,
+    "patch": 0
+  },
+  "configurePresets": [
+    {
+      "name": "base",
+      "description": "Base preset for all builds",
+      "hidden": true,
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/${presetName}",
+      "cacheVariables": {
+        "CMAKE_EXPORT_COMPILE_COMMANDS": "ON"
+      }
+    },
+
+    {
+      "name": "windows-base",
+      "description": "Base preset for Windows builds",
+      "inherits": "base",
+      "hidden": true,
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Windows"
+      }
+    },
+    {
+      "name": "linux-base",
+      "description": "Base preset for Linux builds",
+      "inherits": "base",
+      "hidden": true,
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Linux"
+      }
+    },
+    {
+      "name": "macos-base",
+      "description": "Base preset for macOS builds",
+      "inherits": "base",
+      "hidden": true,
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Darwin"
+      }
+    },
+
+    {
+      "name": "debug-base",
+      "description": "Debug build base",
+      "hidden": true,
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug"
+      }
+    },
+    {
+      "name": "release-base",
+      "description": "Release build base",
+      "hidden": true,
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release"
+      }
+    },
+
+    {
+      "name": "windows-msvc-base",
+      "description": "Windows MSVC base configuration",
+      "inherits": "windows-base",
+      "hidden": true,
+      "cacheVariables": {
+        "CMAKE_CXX_COMPILER": "cl"
+      }
+    },
+    {
+      "name": "windows-clang-base",
+      "description": "Windows Clang base configuration",
+      "inherits": "windows-base",
+      "hidden": true,
+      "cacheVariables": {
+        "CMAKE_CXX_COMPILER": "clang-cl"
+      }
+    },
+    {
+      "name": "linux-gcc-base",
+      "description": "Linux GCC base configuration",
+      "inherits": "linux-base",
+      "hidden": true,
+      "cacheVariables": {
+        "CMAKE_CXX_COMPILER": "g++"
+      }
+    },
+    {
+      "name": "linux-clang-base",
+      "description": "Linux Clang base configuration",
+      "inherits": "linux-base",
+      "hidden": true,
+      "cacheVariables": {
+        "CMAKE_CXX_COMPILER": "clang++"
+      }
+    },
+    {
+      "name": "macos-clang-base",
+      "description": "macOS Clang base configuration",
+      "inherits": "macos-base",
+      "hidden": true,
+      "cacheVariables": {
+        "CMAKE_CXX_COMPILER": "clang++"
+      }
+    },
+    {
+      "name": "macos-gcc-base",
+      "description": "macOS GCC base configuration",
+      "inherits": "macos-base",
+      "hidden": true,
+      "cacheVariables": {
+        "CMAKE_CXX_COMPILER": "g++"
+      }
+    },
+
+    {
+      "name": "windows-msvc-debug",
+      "displayName": "Windows MSVC Debug",
+      "description": "Build with MSVC on Windows in debug mode",
+      "inherits": ["windows-msvc-base", "debug-base"]
+    },
+    {
+      "name": "windows-msvc-release",
+      "displayName": "Windows MSVC Release",
+      "description": "Build with MSVC on Windows in release mode",
+      "inherits": ["windows-msvc-base", "release-base"]
+    },
+    {
+      "name": "windows-clang-debug",
+      "displayName": "Windows Clang Debug",
+      "description": "Build with Clang on Windows in debug mode",
+      "inherits": ["windows-clang-base", "debug-base"]
+    },
+    {
+      "name": "windows-clang-release",
+      "displayName": "Windows Clang Release",
+      "description": "Build with Clang on Windows in release mode",
+      "inherits": ["windows-clang-base", "release-base"]
+    },
+    {
+      "name": "linux-gcc-debug",
+      "displayName": "Linux GCC Debug",
+      "description": "Build with GCC on Linux in debug mode",
+      "inherits": ["linux-gcc-base", "debug-base"]
+    },
+    {
+      "name": "linux-gcc-release",
+      "displayName": "Linux GCC Release",
+      "description": "Build with GCC on Linux in release mode",
+      "inherits": ["linux-gcc-base", "release-base"]
+    },
+    {
+      "name": "linux-clang-debug",
+      "displayName": "Linux Clang Debug",
+      "description": "Build with Clang on Linux in debug mode",
+      "inherits": ["linux-clang-base", "debug-base"]
+    },
+    {
+      "name": "linux-clang-release",
+      "displayName": "Linux Clang Release",
+      "description": "Build with Clang on Linux in release mode",
+      "inherits": ["linux-clang-base", "release-base"]
+    },
+    {
+      "name": "macos-clang-debug",
+      "displayName": "macOS Clang Debug",
+      "description": "Build with Clang on macOS in debug mode",
+      "inherits": ["macos-clang-base", "debug-base"]
+    },
+    {
+      "name": "macos-clang-release",
+      "displayName": "macOS Clang Release",
+      "description": "Build with Clang on macOS in release mode",
+      "inherits": ["macos-clang-base", "release-base"]
+    },
+    {
+      "name": "macos-gcc-debug",
+      "displayName": "macOS GCC Debug",
+      "description": "Build with GCC on macOS in debug mode",
+      "inherits": ["macos-gcc-base", "debug-base"]
+    },
+    {
+      "name": "macos-gcc-release",
+      "displayName": "macOS GCC Release",
+      "description": "Build with GCC on macOS in release mode",
+      "inherits": ["macos-gcc-base", "release-base"]
+    }
+  ],
+  "buildPresets": [
+    {
+      "name": "debug",
+      "description": "Debug build preset",
+      "configurePreset": "linux-gcc-debug"
+    },
+    {
+      "name": "release",
+      "description": "Release build preset",
+      "configurePreset": "linux-gcc-release"
+    },
+    {
+      "name": "windows-msvc-debug",
+      "description": "Windows MSVC Debug build",
+      "configurePreset": "windows-msvc-debug"
+    },
+    {
+      "name": "windows-msvc-release",
+      "description": "Windows MSVC Release build",
+      "configurePreset": "windows-msvc-release"
+    },
+    {
+      "name": "windows-clang-debug",
+      "description": "Windows Clang Debug build",
+      "configurePreset": "windows-clang-debug"
+    },
+    {
+      "name": "windows-clang-release",
+      "description": "Windows Clang Release build",
+      "configurePreset": "windows-clang-release"
+    },
+    {
+      "name": "linux-gcc-debug",
+      "description": "Linux GCC Debug build",
+      "configurePreset": "linux-gcc-debug"
+    },
+    {
+      "name": "linux-gcc-release",
+      "description": "Linux GCC Release build",
+      "configurePreset": "linux-gcc-release"
+    },
+    {
+      "name": "linux-clang-debug",
+      "description": "Linux Clang Debug build",
+      "configurePreset": "linux-clang-debug"
+    },
+    {
+      "name": "linux-clang-release",
+      "description": "Linux Clang Release build",
+      "configurePreset": "linux-clang-release"
+    },
+    {
+      "name": "macos-clang-debug",
+      "description": "macOS Clang Debug build",
+      "configurePreset": "macos-clang-debug"
+    },
+    {
+      "name": "macos-clang-release",
+      "description": "macOS Clang Release build",
+      "configurePreset": "macos-clang-release"
+    },
+    {
+      "name": "macos-gcc-debug",
+      "description": "macOS GCC Debug build",
+      "configurePreset": "macos-gcc-debug"
+    },
+    {
+      "name": "macos-gcc-release",
+      "description": "macOS GCC Release build",
+      "configurePreset": "macos-gcc-release"
+    }
+  ]
+}
