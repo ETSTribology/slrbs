@@ -9,14 +9,16 @@
 
 namespace
 {
-    static inline void multAndSub(const JBlock& G, const Eigen::Vector3f& x, const Eigen::Vector3f& y, const float& a, Eigen::VectorBlock<Eigen::VectorXf>& b)
+    static inline void multAndSub(const JBlock& G, const Eigen::Vector3f& x, const Eigen::Vector3f& y, const float& a, Eigen::VectorXf& b, int startIdx, int dim)
     {
-        b -= a * G.col(0) * x(0);
-        b -= a * G.col(1) * x(1);
-        b -= a * G.col(2) * x(2);
-        b -= a * G.col(3) * y(0);
-        b -= a * G.col(4) * y(1);
-        b -= a * G.col(5) * y(2);
+        // Using the segment approach to avoid temporary reference issues
+        Eigen::VectorBlock<Eigen::VectorXf> segment = b.segment(startIdx, dim);
+        segment -= a * G.col(0) * x(0);
+        segment -= a * G.col(1) * x(1);
+        segment -= a * G.col(2) * x(2);
+        segment -= a * G.col(3) * y(0);
+        segment -= a * G.col(4) * y(1);
+        segment -= a * G.col(5) * y(2);
     }
 
     // Computes the right-hand side vector of the Schur complement system: 
@@ -33,13 +35,13 @@ namespace
 
             if (!j->body0->fixed)
             {
-                multAndSub(j->J0Minv, j->body0->f, j->body0->tau, h, b.segment(j->idx, j->dim));
-                multAndSub(j->J0, j->body0->xdot, j->body0->omega, 1.0f, b.segment(j->idx, j->dim));
+                multAndSub(j->J0Minv, j->body0->f, j->body0->tau, h, b, j->idx, j->dim);
+                multAndSub(j->J0, j->body0->xdot, j->body0->omega, 1.0f, b, j->idx, j->dim);
             }
             if (!j->body1->fixed)
             {
-                multAndSub(j->J1Minv, j->body1->f, j->body1->tau, h, b.segment(j->idx, j->dim));
-                multAndSub(j->J1, j->body1->xdot, j->body1->omega, 1.0f, b.segment(j->idx, j->dim));
+                multAndSub(j->J0Minv, j->body0->f, j->body0->tau, h, b, j->idx, j->dim);
+                multAndSub(j->J0, j->body0->xdot, j->body0->omega, 1.0f, b, j->idx, j->dim);
             }
         }
 
