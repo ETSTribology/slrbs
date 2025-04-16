@@ -1,0 +1,337 @@
+{
+  "name": "CarScene",
+  "description": "Simple car with chassis and four wheels connected by hinges",
+  "version": 1.0,
+  "bodies": [
+    {
+      "id": 0,
+      "mass": 5.0,
+      "fixed": false,
+      "position": {
+        "x": 0.0,
+        "y": 0.5,
+        "z": 0.0
+      },
+      "orientation": {
+        "w": 1.0,
+        "x": 0.0,
+        "y": 0.0,
+        "z": 0.0
+      },
+      "linear_velocity": {
+        "x": 0.0,
+        "y": 0.0,
+        "z": -10.0
+      },
+      "angular_velocity": {
+        "x": 0.0,
+        "y": 0.0,
+        "z": 0.0
+      },
+      "geometry": {
+        "type": "box",
+        "dimensions": {
+          "x": 2.0,
+          "y": 0.5,
+          "z": 3.0
+        }
+      },
+      "visual": {
+        "color": {
+          "r": 0.3,
+          "g": 0.3,
+          "b": 0.8
+        },
+        "transparency": 0.0,
+        "smooth_shade": true,
+        "edge_width": 1.0
+      }
+    },
+    {
+      "id": 1,
+      "mass": 1.0,
+      "fixed": false,
+      "position": {
+        "x": 1.0,
+        "y": 0.5,
+        "z": 1.5
+      },
+      "orientation": {
+        "w": 0.7071068,
+        "x": 0.0,
+        "y": 0.0,
+        "z": 0.7071068
+      },
+      "geometry": {
+        "type": "cylinder",
+        "height": 0.2,
+        "radius": 0.5
+      },
+      "visual": {
+        "color": {
+          "r": 0.2,
+          "g": 0.2,
+          "b": 0.2
+        },
+        "transparency": 0.0,
+        "smooth_shade": true,
+        "edge_width": 1.0
+      }
+    },
+    {
+      "id": 2,
+      "mass": 1.0,
+      "fixed": false,
+      "position": {
+        "x": -1.0,
+        "y": 0.5,
+        "z": 1.5
+      },
+      "orientation": {
+        "w": 0.7071068,
+        "x": 0.0,
+        "y": 0.0,
+        "z": 0.7071068
+      },
+      "geometry": {
+        "type": "cylinder",
+        "height": 0.2,
+        "radius": 0.5
+      },
+      "visual": {
+        "color": {
+          "r": 0.2,
+          "g": 0.2,
+          "b": 0.2
+        },
+        "transparency": 0.0,
+        "smooth_shade": true,
+        "edge_width": 1.0
+      }
+    },
+    {
+      "id": 3,
+      "mass": 1.0,
+      "fixed": false,
+      "position": {
+        "x": 1.0,
+        "y": 0.5,
+        "z": -1.5
+      },
+      "orientation": {
+        "w": 0.7071068,
+        "x": 0.0,
+        "y": 0.0,
+        "z": 0.7071068
+      },
+      "geometry": {
+        "type": "cylinder",
+        "height": 0.2,
+        "radius": 0.5
+      },
+      "visual": {
+        "color": {
+          "r": 0.2,
+          "g": 0.2,
+          "b": 0.2
+        },
+        "transparency": 0.0,
+        "smooth_shade": true,
+        "edge_width": 1.0
+      }
+    },
+    {
+      "id": 4,
+      "mass": 1.0,
+      "fixed": false,
+      "position": {
+        "x": -1.0,
+        "y": 0.5,
+        "z": -1.5
+      },
+      "orientation": {
+        "w": 0.7071068,
+        "x": 0.0,
+        "y": 0.0,
+        "z": 0.7071068
+      },
+      "geometry": {
+        "type": "cylinder",
+        "height": 0.2,
+        "radius": 0.5
+      },
+      "visual": {
+        "color": {
+          "r": 0.2,
+          "g": 0.2,
+          "b": 0.2
+        },
+        "transparency": 0.0,
+        "smooth_shade": true,
+        "edge_width": 1.0
+      }
+    },
+    {
+      "id": 5,
+      "mass": 1.0,
+      "fixed": true,
+      "position": {
+        "x": 0.0,
+        "y": 0.0,
+        "z": 0.0
+      },
+      "orientation": {
+        "w": 1.0,
+        "x": 0.0,
+        "y": 0.0,
+        "z": 0.0
+      },
+      "geometry": {
+        "type": "plane",
+        "point": {
+          "x": 0.0,
+          "y": 0.0,
+          "z": 0.0
+        },
+        "normal": {
+          "x": 0.0,
+          "y": 1.0,
+          "z": 0.0
+        }
+      },
+      "visual": {
+        "color": {
+          "r": 0.5,
+          "g": 0.5,
+          "b": 0.5
+        },
+        "transparency": 0.0,
+        "smooth_shade": true,
+        "edge_width": 1.0
+      }
+    }
+  ],
+  "joints": [
+    {
+      "id": 0,
+      "type": "hinge",
+      "body0_id": 0,
+      "body1_id": 1,
+      "body0_offset": {
+        "x": 1.0,
+        "y": 0.0,
+        "z": 1.5
+      },
+      "body1_offset": {
+        "x": 0.0,
+        "y": 0.0,
+        "z": 0.0
+      },
+      "body0_orientation": {
+        "w": 1.0,
+        "x": 0.0,
+        "y": 0.0,
+        "z": 0.0
+      },
+      "body1_orientation": {
+        "w": 0.7071068,
+        "x": 0.0,
+        "y": 0.0,
+        "z": 0.7071068
+      }
+    },
+    {
+      "id": 1,
+      "type": "hinge",
+      "body0_id": 0,
+      "body1_id": 2,
+      "body0_offset": {
+        "x": -1.0,
+        "y": 0.0,
+        "z": 1.5
+      },
+      "body1_offset": {
+        "x": 0.0,
+        "y": 0.0,
+        "z": 0.0
+      },
+      "body0_orientation": {
+        "w": 1.0,
+        "x": 0.0,
+        "y": 0.0,
+        "z": 0.0
+      },
+      "body1_orientation": {
+        "w": 0.7071068,
+        "x": 0.0,
+        "y": 0.0,
+        "z": 0.7071068
+      }
+    },
+    {
+      "id": 2,
+      "type": "hinge",
+      "body0_id": 0,
+      "body1_id": 3,
+      "body0_offset": {
+        "x": 1.0,
+        "y": 0.0,
+        "z": -1.5
+      },
+      "body1_offset": {
+        "x": 0.0,
+        "y": 0.0,
+        "z": 0.0
+      },
+      "body0_orientation": {
+        "w": 1.0,
+        "x": 0.0,
+        "y": 0.0,
+        "z": 0.0
+      },
+      "body1_orientation": {
+        "w": 0.7071068,
+        "x": 0.0,
+        "y": 0.0,
+        "z": 0.7071068
+      }
+    },
+    {
+      "id": 3,
+      "type": "hinge",
+      "body0_id": 0,
+      "body1_id": 4,
+      "body0_offset": {
+        "x": -1.0,
+        "y": 0.0,
+        "z": -1.5
+      },
+      "body1_offset": {
+        "x": 0.0,
+        "y": 0.0,
+        "z": 0.0
+      },
+      "body0_orientation": {
+        "w": 1.0,
+        "x": 0.0,
+        "y": 0.0,
+        "z": 0.0
+      },
+      "body1_orientation": {
+        "w": 0.7071068,
+        "x": 0.0,
+        "y": 0.0,
+        "z": 0.7071068
+      }
+    }
+  ],
+  "physics": {
+    "gravity": {
+      "x": 0.0,
+      "y": -9.81,
+      "z": 0.0
+    },
+    "time_step": 0.01,
+    "solver_iterations": 10
+  }
+}

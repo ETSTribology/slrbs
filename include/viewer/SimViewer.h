@@ -7,7 +7,6 @@
  *
  */
 
-#include "ScenarioLoader.h"
 #include "util/Types.h"
 #include <memory>
 #include <vector>

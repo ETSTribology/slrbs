@@ -32,6 +32,13 @@ FetchContent_Declare(
 FetchContent_MakeAvailable(Eigen)
 FetchContent_GetProperties(Eigen SOURCE_DIR Eigen_SRC_DIR BINARY_DIR Eigen_BIN_DIR)
 
+# Add nlohmann/json library for JSON parsing
+FetchContent_Declare(
+  json
+  URL https://github.com/nlohmann/json/releases/download/v3.11.2/json.tar.xz
+)
+FetchContent_MakeAvailable(json)
+
 
 set(collision_HEADERS include/collision/CollisionDetect.h 
                       include/collision/Geometry.h )
@@ -65,9 +72,11 @@ set(solver_SOURCE src/solvers/SolverBoxPGS.cpp
 
 set(util_HEADERS include/util/OBJLoader.h
                  include/util/MeshAssets.h
+                 include/util/ScenarioLoader.h
 				 include/util/Types.h )
 set(util_SOURCE src/util/OBJLoader.cpp
-                src/util/MeshAssets.cpp )
+                src/util/MeshAssets.cpp
+                src/util/ScenarioLoader.cpp )
 
 set(viewer_HEADERS include/viewer/SimViewer.h)
 set(viewer_SOURCE src/viewer/SimViewer.cpp)
@@ -82,7 +91,7 @@ add_executable (slrbs main.cpp
           ${viewer_HEADERS} ${viewer_SOURCE} )
 
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/include ${Eigen_SRC_DIR} ${COMMON_INCLUDES})
-target_link_libraries(slrbs OpenGL::GL polyscope)
+target_link_libraries(slrbs OpenGL::GL polyscope nlohmann_json::nlohmann_json)
 
 # Setup source code groups
 #
