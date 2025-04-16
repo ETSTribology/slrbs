@@ -7,9 +7,11 @@
  *
  */
 
+#include "ScenarioLoader.h"
 #include "util/Types.h"
 #include <memory>
 #include <vector>
+#include <string>
 
 namespace polyscope
 {
@@ -40,9 +42,16 @@ private:
     void createSwingingBox();
     void createCylinderOnPlane();
     void createCarScene();
+    
+    // Method to load a JSON scenario
+    void loadScenarioFromJSON(const std::string& filename);
+    
+    // Method to refresh the available scenarios list
+    void refreshScenariosList();
 
     void draw();
     void drawGUI();
+    void drawScenarioSelectionGUI();
 
     void preStep(std::vector<RigidBody*>&);
 
@@ -59,5 +68,8 @@ private:
     bool m_drawConstraints;             // enable constraint viz
     float m_dynamicsTime;               // Compute time for the dynamics step (in ms)
     std::unique_ptr<RigidBodySystemState> m_resetState;
-
+    
+    // Available JSON scenarios
+    std::vector<std::string> m_availableScenarios;
+    int m_selectedScenario;
 };
