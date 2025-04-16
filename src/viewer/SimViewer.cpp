@@ -16,6 +16,7 @@
 #include "rigidbody/RigidBodySystem.h"
 #include "rigidbody/RigidBodyState.h"
 #include "rigidbody/Scenarios.h"
+#include "ScenarioLoader.h"
 
 using namespace std;
 
@@ -105,8 +106,6 @@ namespace
             curves->setRadius(0.002f);
         }
     }
-
-
 }
 
 SimViewer::SimViewer() :
@@ -114,9 +113,10 @@ SimViewer::SimViewer() :
     m_paused(true), m_stepOnce(false),
     m_enableCollisions(true), m_enableScreenshots(false),
     m_drawContacts(true), m_drawConstraints(true),
-    m_resetState()
+    m_resetState(), m_selectedScenario(-1)
 {
     m_resetState = std::make_unique<RigidBodySystemState>(*m_rigidBodySystem);
+    refreshScenariosList();
     reset();
 }
 
@@ -172,7 +172,64 @@ void SimViewer::start()
 
     // Show the window
     polyscope::show();
+}
 
+void SimViewer::refreshScenariosList()
+{
+    m_availableScenarios = ScenarioLoader::listAvailableScenarios();
+    
+    if (m_availableScenarios.empty()) {
+        std::cout << "No JSON scenario files found." << std::endl;
+    } else {
+        std::cout << "Found " << m_availableScenarios.size() << " JSON scenario files." << std::endl;
+    }
+    
+    // Reset selection to none
+    m_selectedScenario = -1;
+}
+
+void SimViewer::loadScenarioFromJSON(const std::string& filename)
+{
+    if (ScenarioLoader::loadFromFile(*m_rigidBodySystem, filename)) {
+        std::cout << "Successfully loaded scenario from " << filename << std::endl;
+        m_resetState->save(*m_rigidBodySystem);
+        updateRigidBodyMeshes(*m_rigidBodySystem);
+        polyscope::resetScreenshotIndex();
+    } else {
+        std::cerr << "Failed to load scenario from " << filename << std::endl;
+    }
+}
+
+void SimViewer::drawScenarioSelectionGUI()
+{
+    if (ImGui::CollapsingHeader("JSON Scenarios", ImGuiTreeNodeFlags_DefaultOpen)) {
+        if (ImGui::Button("Refresh Scenarios List")) {
+            refreshScenariosList();
+        }
+        
+        // Display scenario list
+        if (!m_availableScenarios.empty()) {
+            ImGui::Text("Available Scenarios:");
+            ImGui::Indent();
+            
+            for (int i = 0; i < m_availableScenarios.size(); i++) {
+                if (ImGui::Selectable(m_availableScenarios[i].c_str(), m_selectedScenario == i)) {
+                    m_selectedScenario = i;
+                }
+            }
+            
+            ImGui::Unindent();
+            
+            // Load button
+            if (m_selectedScenario >= 0 && m_selectedScenario < m_availableScenarios.size()) {
+                if (ImGui::Button("Load Selected Scenario")) {
+                    loadScenarioFromJSON(m_availableScenarios[m_selectedScenario]);
+                }
+            }
+        } else {
+            ImGui::Text("No JSON scenario files found.");
+        }
+    }
 }
 
 void SimViewer::drawGUI()
@@ -208,24 +265,29 @@ void SimViewer::drawGUI()
     ImGui::Checkbox("Draw constraints", &m_drawConstraints);
     ImGui::Checkbox("Enable screenshots", &m_enableScreenshots);
 
-    if (ImGui::Button("Sphere on box")) {
-        createSphereOnBox();
+    // Built-in scenarios
+    if (ImGui::CollapsingHeader("Built-in Scenarios", ImGuiTreeNodeFlags_DefaultOpen)) {
+        if (ImGui::Button("Sphere on box")) {
+            createSphereOnBox();
+        }
+        if (ImGui::Button("Marble box")) {
+            createMarbleBox();
+        }
+        if (ImGui::Button("Swinging box")) {
+            createSwingingBox();
+        }
+        if (ImGui::Button("Cylinder on plane")) {
+            createCylinderOnPlane();
+        }
+        if (ImGui::Button("Create car scene")) {
+            createCarScene();
+        }
     }
-    if (ImGui::Button("Marble box")) {
-        createMarbleBox();
-    }
-    if (ImGui::Button("Swinging box")) {
-        createSwingingBox();
-    }
-    if (ImGui::Button("Cylinder on plane")) {
-        createCylinderOnPlane();
-    }
-    if (ImGui::Button("Create car scene")) {
-        createCarScene();
-    }
+    
+    // JSON scenario selection UI
+    drawScenarioSelectionGUI();
 
     ImGui::Text("Step time: %3.3f ms", m_dynamicsTime);
-
 }
 
 void SimViewer::draw()
