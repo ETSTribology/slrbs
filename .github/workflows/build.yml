@@ -5,7 +5,7 @@ on:
     branches: [ main, master, develop ]
   pull_request:
     branches: [ main, master, develop ]
-  workflow_dispatch:  # Allow manual triggering
+  workflow_dispatch:
 
 jobs:
   build:
@@ -68,42 +68,6 @@ jobs:
           version: '5.15.2'
           modules: 'core gui opengl'
 
-      - name: Fix C++ Reference Errors
-        run: |
-          # Create a helper script that will fix the C++ reference errors
-          cat > fix_reference_errors.sh << 'EOF'
-          #!/bin/bash
-          
-          # Fix SolverConjGradient.cpp
-          find . -name "SolverConjGradient.cpp" -type f -exec sed -i.bak 's/multAndSub(j->J0Minv, j->body0->f, j->body0->tau, h, b.segment(j->idx, j->dim));/auto \&segment1 = b.segment(j->idx, j->dim);\n            multAndSub(j->J0Minv, j->body0->f, j->body0->tau, h, segment1);/g' {} \;
-          find . -name "SolverConjGradient.cpp" -type f -exec sed -i.bak 's/multAndSub(j->J0, j->body0->xdot, j->body0->omega, 1.0f, b.segment(j->idx, j->dim));/auto \&segment2 = b.segment(j->idx, j->dim);\n            multAndSub(j->J0, j->body0->xdot, j->body0->omega, 1.0f, segment2);/g' {} \;
-          find . -name "SolverConjGradient.cpp" -type f -exec sed -i.bak 's/multAndSub(j->J1Minv, j->body1->f, j->body1->tau, h, b.segment(j->idx, j->dim));/auto \&segment3 = b.segment(j->idx, j->dim);\n            multAndSub(j->J1Minv, j->body1->f, j->body1->tau, h, segment3);/g' {} \;
-          find . -name "SolverConjGradient.cpp" -type f -exec sed -i.bak 's/multAndSub(j->J1, j->body1->xdot, j->body1->omega, 1.0f, b.segment(j->idx, j->dim));/auto \&segment4 = b.segment(j->idx, j->dim);\n            multAndSub(j->J1, j->body1->xdot, j->body1->omega, 1.0f, segment4);/g' {} \;
-          
-          # Fix SolverConjResidual.cpp
-          find . -name "SolverConjResidual.cpp" -type f -exec sed -i.bak 's/multAndSub(j->J0Minv, j->body0->f, j->body0->tau, h, b.segment(j->idx, j->dim));/auto \&segment1 = b.segment(j->idx, j->dim);\n            multAndSub(j->J0Minv, j->body0->f, j->body0->tau, h, segment1);/g' {} \;
-          find . -name "SolverConjResidual.cpp" -type f -exec sed -i.bak 's/multAndSub(j->J0, j->body0->xdot, j->body0->omega, 1.0f, b.segment(j->idx, j->dim));/auto \&segment2 = b.segment(j->idx, j->dim);\n            multAndSub(j->J0, j->body0->xdot, j->body0->omega, 1.0f, segment2);/g' {} \;
-          find . -name "SolverConjResidual.cpp" -type f -exec sed -i.bak 's/multAndSub(j->J1Minv, j->body1->f, j->body1->tau, h, b.segment(j->idx, j->dim));/auto \&segment3 = b.segment(j->idx, j->dim);\n            multAndSub(j->J1Minv, j->body1->f, j->body1->tau, h, segment3);/g' {} \;
-          find . -name "SolverConjResidual.cpp" -type f -exec sed -i.bak 's/multAndSub(j->J1, j->body1->xdot, j->body1->omega, 1.0f, b.segment(j->idx, j->dim));/auto \&segment4 = b.segment(j->idx, j->dim);\n            multAndSub(j->J1, j->body1->xdot, j->body1->omega, 1.0f, segment4);/g' {} \;
-          EOF
-          
-          chmod +x fix_reference_errors.sh
-          ./fix_reference_errors.sh
-
-      - name: Update CMake to Find Qt
-        run: |
-          # Create a helper script to update CMakeLists.txt
-          cat > update_cmake.sh << 'EOF'
-          #!/bin/bash
-          
-          # Add Qt find_package and linking to CMakeLists.txt
-          sed -i.bak '/find_package(OpenGL REQUIRED)/a find_package(Qt5 COMPONENTS Core Gui OpenGL REQUIRED)' CMakeLists.txt
-          sed -i.bak '/target_link_libraries(slrbs PRIVATE/a \ \ Qt5::Core\n  Qt5::Gui\n  Qt5::OpenGL' CMakeLists.txt
-          EOF
-          
-          chmod +x update_cmake.sh
-          ./update_cmake.sh
-
       - name: Configure CMake
         shell: bash
         run: |
@@ -128,7 +92,7 @@ jobs:
         continue-on-error: true
 
       - name: Upload Artifacts
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: slrbs-${{ matrix.config.os }}-${{ matrix.config.build_type }}
           path: |
