@@ -1,108 +1,134 @@
-cmake_minimum_required(VERSION 3.12)
-project(slrbs)
+cmake_minimum_required(VERSION 3.23)
+project(slrbs 
+  VERSION 0.1.0
+  DESCRIPTION "SLRBS"
+  HOMEPAGE_URL "https://github.com/ETSim/slrbs"
+  LANGUAGES CXX)
+find_package(Qt5 COMPONENTS Core Gui OpenGL REQUIRED)
 
+# ─────────────────────────────────────────────────────────────────────────────
+#  Global options
+# ─────────────────────────────────────────────────────────────────────────────
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_POSITION_INDEPENDENT_CODE ON)
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
-list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_LIST_DIR}/cmake")
-find_package(OpenGL REQUIRED)
+# Build options (defaults to Release build)
+if(NOT CMAKE_BUILD_TYPE)
+  set(CMAKE_BUILD_TYPE Release CACHE STRING "Build type" FORCE)
+endif()
+set_property(CACHE CMAKE_BUILD_TYPE PROPERTY STRINGS Debug Release RelWithDebInfo MinSizeRel)
 
-if (APPLE)
-  add_definitions( -DGL_SILENCE_DEPRECATION )
+# Enable testing
+option(BUILD_TESTING "Enable testing" ON)
+if(BUILD_TESTING)
+  enable_testing()
+  include(CTest)
 endif()
 
+# Friendly warnings
+if(MSVC)
+  add_compile_options(/permissive- /W4 /Zc:preprocessor /MP)
+  # Disable some MSVC warnings
+  add_compile_options(/wd4267 /wd4244)
+else()
+  add_compile_options(-Wall -Wextra -pedantic -Wshadow -Wconversion)
+  # Enable faster builds with ccache if available
+  find_program(CCACHE_PROGRAM ccache)
+  if(CCACHE_PROGRAM)
+    set(CMAKE_CXX_COMPILER_LAUNCHER "${CCACHE_PROGRAM}")
+  endif()
+endif()
+
+# Silence the "OpenGL deprecated" spam on recent macOS
+if(APPLE)
+  add_compile_definitions(GL_SILENCE_DEPRECATION)
+endif()
+
+# ─────────────────────────────────────────────────────────────────────────────
+#  OpenGL — one target name for every platform
+# ─────────────────────────────────────────────────────────────────────────────
+find_package(OpenGL REQUIRED)
+
+if(TARGET OpenGL::GL)             # Linux / most Windows toolchains
+  set(OPENGL_LIB OpenGL::GL)
+elseif(TARGET OpenGL::OpenGL)     # macOS framework
+  set(OPENGL_LIB OpenGL::OpenGL)
+elseif(WIN32)                     # really old CMake on Windows
+  set(OPENGL_LIB opengl32)
+else()
+  message(FATAL_ERROR "Could not locate a usable OpenGL target")
+endif()
+
+# ─────────────────────────────────────────────────────────────────────────────
+#  Third‑party libraries (fully reproducible with FetchContent)
+# ─────────────────────────────────────────────────────────────────────────────
 include(FetchContent)
+
+# Polyscope (visualisation)
 FetchContent_Declare(
   polyscope
   GIT_REPOSITORY https://github.com/nmwsharp/polyscope.git
-  GIT_TAG v2.2.1
-  GIT_PROGRESS TRUE
+  GIT_TAG        v2.4.0
+  GIT_PROGRESS   YES
 )
-FetchContent_MakeAvailable(polyscope)
-FetchContent_GetProperties(polyscope SOURCE_DIR polyscope_SRC_DIR BINARY_DIR polyscope_BIN_DIR)
 
+# Eigen (linear algebra)
 FetchContent_Declare(
-  Eigen
+  eigen
   GIT_REPOSITORY https://gitlab.com/libeigen/eigen.git
-  GIT_TAG 3.4
-  GIT_SHALLOW TRUE
-  GIT_PROGRESS TRUE
-  SOURCE_SUBDIR cmake
+  GIT_TAG        3.4
+  GIT_SHALLOW    TRUE
+  SOURCE_SUBDIR  cmake
 )
-FetchContent_MakeAvailable(Eigen)
-FetchContent_GetProperties(Eigen SOURCE_DIR Eigen_SRC_DIR BINARY_DIR Eigen_BIN_DIR)
 
+# Actually download and configure them
+FetchContent_MakeAvailable(polyscope eigen)
 
-set(collision_HEADERS include/collision/CollisionDetect.h 
-                      include/collision/Geometry.h )
-set(collision_SOURCE src/collision/CollisionDetect.cpp ) 
+file(GLOB_RECURSE SRC CONFIGURE_DEPENDS
+     src/*.cpp
+     include/*.h)
 
-set(rigidbody_HEADERS include/rigidbody/RigidBody.h
-					  include/rigidbody/RigidBodyState.h
-                      include/rigidbody/RigidBodySystem.h 
-                      include/rigidbody/Scenarios.h )
-set(rigidbody_SOURCE src/rigidbody/RigidBody.cpp 
-					 src/rigidbody/RigidBodyState.cpp
-                     src/rigidbody/RigidBodySystem.cpp )
+list(APPEND SRC "${CMAKE_CURRENT_SOURCE_DIR}/main.cpp")
 
-set(joint_HEADERS include/joint/Joint.h
-				  include/joint/Hinge.h
-				  include/joint/Spherical.h )
-set(joint_SOURCE src/joint/Joint.cpp
-				 src/joint/Hinge.cpp
-			     src/joint/Spherical.cpp )
+add_executable(slrbs ${SRC})
 
-set(contact_HEADERS include/contact/Contact.h )
-set(contact_SOURCE src/contact/Contact.cpp )
+# ───────────────────────────────────────F──────────────────────────────────────
+#  Target configuration
+# ─────────────────────────────────────────────────────────────────────────────
+target_include_directories(slrbs PRIVATE
+  ${CMAKE_CURRENT_SOURCE_DIR}/include
+  ${eigen_SOURCE_DIR})
 
-set(solver_HEADERS include/solvers/Solver.h 
-                   include/solvers/SolverBoxPGS.h
-				   include/solvers/SolverConjGradient.h
-				   include/solvers/SolverConjResidual.h)
-set(solver_SOURCE src/solvers/SolverBoxPGS.cpp
-				  src/solvers/SolverConjGradient.cpp
-	              src/solvers/SolverConjResidual.cpp)
+target_link_libraries(slrbs PRIVATE
+  ${OPENGL_LIB}
+  polyscope
+  Qt5::Core
+  Qt5::Gui
+  Qt5::OpenGL)
 
-set(util_HEADERS include/util/OBJLoader.h
-                 include/util/MeshAssets.h
-				 include/util/Types.h )
-set(util_SOURCE src/util/OBJLoader.cpp
-                src/util/MeshAssets.cpp )
+# Add postfix to Debug builds
+set_target_properties(slrbs PROPERTIES DEBUG_POSTFIX "d")
 
-set(viewer_HEADERS include/viewer/SimViewer.h)
-set(viewer_SOURCE src/viewer/SimViewer.cpp)
-        
-add_executable (slrbs main.cpp
-          ${contact_HEADERS} ${contact_SOURCE} 
-          ${joint_HEADERS} ${joint_SOURCE}
-          ${collision_HEADERS} ${collision_SOURCE}
-          ${rigidbody_HEADERS} ${rigidbody_SOURCE}
-          ${solver_HEADERS} ${solver_SOURCE}
-		  ${util_HEADERS} ${util_SOURCE}
-          ${viewer_HEADERS} ${viewer_SOURCE} )
+# ─────────────────────────────────────────────────────────────────────────────
+#  Install targets
+# ─────────────────────────────────────────────────────────────────────────────
+include(GNUInstallDirs)
 
-include_directories(${CMAKE_CURRENT_SOURCE_DIR}/include ${Eigen_SRC_DIR} ${COMMON_INCLUDES})
-target_link_libraries(slrbs OpenGL::GL polyscope)
+install(TARGETS slrbs
+        RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+        BUNDLE DESTINATION ${CMAKE_INSTALL_BINDIR})
 
-# Setup source code groups
-#
-source_group(src FILES main.cpp)
-source_group(src/collision FILES ${collision_SOURCE})
-source_group(include/collision FILES ${collision_HEADERS})
-source_group(src/joint FILES ${joint_SOURCE})
-source_group(include/joint FILES ${joint_HEADERS})
-source_group(src/contact FILES ${contact_SOURCE})
-source_group(include/contact FILES ${contact_HEADERS})
-source_group(src/rigidbody FILES ${rigidbody_SOURCE})
-source_group(include/rigidbody FILES ${rigidbody_HEADERS})
-source_group(src/solvers FILES ${solver_SOURCE})
-source_group(include/solvers FILES ${solver_HEADERS})
-source_group(src/util FILES ${util_SOURCE})
-source_group(include/util FILES ${util_HEADERS})
-source_group(src/viewer FILES ${viewer_SOURCE})
-source_group(include/viewer FILES ${viewer_HEADERS})
-source_group(src/util FILES ${util_SOURCE})
+set_property(GLOBAL PROPERTY USE_FOLDERS ON)
+foreach(file IN LISTS SRC)
+  get_filename_component(folder "${file}" PATH)
+  string(REPLACE "${CMAKE_CURRENT_SOURCE_DIR}/src/"     "" folder "${folder}")
+  string(REPLACE "${CMAKE_CURRENT_SOURCE_DIR}/include/" "" folder "${folder}")
+  source_group("${folder}" FILES "${file}")
+endforeach()
 
-if(MSVC) 
-	set_property(TARGET slrbs PROPERTY VS_DEBUGGER_WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
+# Start Visual Studio's debugger in project root
+if(MSVC)
+  set_property(TARGET slrbs PROPERTY VS_DEBUGGER_WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}")
 endif()

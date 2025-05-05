@@ -6,10 +6,9 @@
 
 #include <Eigen/Dense>
 
-
 namespace
 {
-    static inline void multAndSub(const JBlock& G, const Eigen::Vector3f& x, const Eigen::Vector3f& y, const float& a, Eigen::VectorBlock<Eigen::VectorXf>& b)
+    static inline void multAndSub(const JBlock &G, const Eigen::Vector3f &x, const Eigen::Vector3f &y, const float &a, Eigen::VectorBlock<Eigen::VectorXf> &b)
     {
         b -= a * G.col(0) * x(0);
         b -= a * G.col(1) * x(1);
@@ -19,38 +18,41 @@ namespace
         b -= a * G.col(5) * y(2);
     }
 
-    // Computes the right-hand side vector of the Schur complement system: 
+    // Computes the right-hand side vector of the Schur complement system:
     //      b = -phi/h - J*vel - dt*JMinv*force
     //
     static inline void buildRHS(const std::vector<Joint*>& joints, float h, Eigen::VectorXf& b)
     {
         const float hinv = 1.0f / h;
         const float gamma = 0.3f;
-
+        
         for (Joint* j : joints)
         {
             b.segment(j->idx, j->dim) = -hinv * gamma * j->phi;
 
             if (!j->body0->fixed)
             {
-                multAndSub(j->J0Minv, j->body0->f, j->body0->tau, h, b.segment(j->idx, j->dim));
-                multAndSub(j->J0, j->body0->xdot, j->body0->omega, 1.0f, b.segment(j->idx, j->dim));
+                // Create a single object that will be reused
+                auto segment = b.segment(j->idx, j->dim);
+                multAndSub(j->J0Minv, j->body0->f, j->body0->tau, h, segment);
+                multAndSub(j->J0, j->body0->xdot, j->body0->omega, 1.0f, segment);
             }
             if (!j->body1->fixed)
             {
-                multAndSub(j->J1Minv, j->body1->f, j->body1->tau, h, b.segment(j->idx, j->dim));
-                multAndSub(j->J1, j->body1->xdot, j->body1->omega, 1.0f, b.segment(j->idx, j->dim));
+                // Create a single object that will be reused
+                auto segment = b.segment(j->idx, j->dim);
+                multAndSub(j->J1Minv, j->body1->f, j->body1->tau, h, segment);
+                multAndSub(j->J1, j->body1->xdot, j->body1->omega, 1.0f, segment);
             }
         }
-
     }
 
-    // Loop over all other contacts for a body and compute modifications to the rhs vector b: 
+    // Loop over all other contacts for a body and compute modifications to the rhs vector b:
     //           x -= (JMinv*Jother^T) * lambda_other
     //
-    static inline void accumulateCoupledContactsAndJoints(Joint* j, const JBlock& JMinv, const RigidBody* body, const Eigen::VectorXf& x, Eigen::VectorXf& Ax)
+    static inline void accumulateCoupledContactsAndJoints(Joint *j, const JBlock &JMinv, const RigidBody *body, const Eigen::VectorXf &x, Eigen::VectorXf &Ax)
     {
-        for (Joint* jj : body->joints)
+        for (Joint *jj : body->joints)
         {
             if (jj != j)
             {
@@ -66,14 +68,14 @@ namespace
         }
     }
 
-    static inline void computeAx(const std::vector<Joint*>& joints, const Eigen::VectorXf& x, Eigen::VectorXf& Ax)
+    static inline void computeAx(const std::vector<Joint *> &joints, const Eigen::VectorXf &x, Eigen::VectorXf &Ax)
     {
         static const float eps = 1e-9f;
         Ax.setZero();
-        for (Joint* j : joints)
+        for (Joint *j : joints)
         {
-            const RigidBody* body0 = j->body0;
-            const RigidBody* body1 = j->body1;
+            const RigidBody *body0 = j->body0;
+            const RigidBody *body1 = j->body1;
 
             Ax.segment(j->idx, j->dim) += eps * x.segment(j->idx, j->dim);
 
@@ -92,20 +94,19 @@ namespace
     }
 }
 
-SolverConjResidual::SolverConjResidual(RigidBodySystem* _rigidBodySystem) : Solver(_rigidBodySystem)
+SolverConjResidual::SolverConjResidual(RigidBodySystem *_rigidBodySystem) : Solver(_rigidBodySystem)
 {
-
 }
 
 void SolverConjResidual::solve(float h)
 {
-    const auto& bodies = m_rigidBodySystem->getBodies();
-    const auto& joints = m_rigidBodySystem->getJoints();
+    const auto &bodies = m_rigidBodySystem->getBodies();
+    const auto &joints = m_rigidBodySystem->getJoints();
     const unsigned int n_bodies = bodies.size();
-    const unsigned int n_joints = bodies.size();
+    const unsigned int n_joints = joints.size(); // Fixed: was incorrectly using bodies.size()
 
     unsigned int idx = 0;
-    for (Joint* j : joints)
+    for (Joint *j : joints)
     {
         j->idx = idx;
         idx += j->dim;
@@ -130,11 +131,13 @@ void SolverConjResidual::solve(float h)
     float pATAp = Ap.dot(Ap);
     for (int i = 0; i < m_maxIter; ++i)
     {
-        if (rAr < 1e-12f) break;
-        if (pATAp < 1e-12f) break;
+        if (rAr < 1e-12f)
+            break;
+        if (pATAp < 1e-12f)
+            break;
 
         float alpha = rAr / pATAp;
-       
+
         x += alpha * p;
         r -= alpha * Ap;
         computeAx(joints, r, Ar);
@@ -146,15 +149,11 @@ void SolverConjResidual::solve(float h)
 
         rAr = rAr_next;
         pATAp = Ap.dot(Ap);
-
     }
 
     // Copy joint impulses
-    for (Joint* j : joints)
+    for (Joint *j : joints)
     {
         j->lambda = x.segment(j->idx, j->dim);
     }
-
 }
-
-

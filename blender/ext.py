@@ -113,32 +113,32 @@ class ExportSLRBSScene(Operator, ExportHelper):
         default="*.json",
         options={'HIDDEN'},
         maxlen=255,
-    )
+    ) # type: ignore
 
     # Export options
     export_selected: BoolProperty(
         name="Export Selected Only",
         description="Export only selected objects",
         default=False,
-    )
+    ) # type: ignore
     
     convert_units: BoolProperty(
         name="Convert Units to Meters",
         description="Convert Blender units to meters",
         default=True,
-    )
+    ) # type: ignore
     
     scene_name: StringProperty(
         name="Scene Name",
         description="Name of the exported scene",
         default="BlenderScene",
-    )
+    ) # type: ignore
     
     scene_description: StringProperty(
         name="Scene Description",
         description="Description of the exported scene",
         default="Scene exported from Blender",
-    )
+    ) # type: ignore
     
     gravity_magnitude: FloatProperty(
         name="Gravity Magnitude",
@@ -146,7 +146,7 @@ class ExportSLRBSScene(Operator, ExportHelper):
         default=9.81,
         min=0.0,
         precision=2,
-    )
+    ) # type: ignore
 
     def execute(self, context):
         # Get objects to export
