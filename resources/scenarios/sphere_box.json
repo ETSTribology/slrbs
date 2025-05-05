@@ -1,0 +1,90 @@
+{
+    "name": "SphereOnBox",
+    "description": "Simple sphere falling on a box with spinning motion",
+    "version": 1.0,
+    "bodies": [
+        {
+            "id": 0,
+            "mass": 1.0,
+            "fixed": false,
+            "position": {
+                "x": 0.0,
+                "y": 4.0,
+                "z": 0.0
+            },
+            "orientation": {
+                "w": 1.0,
+                "x": 0.0,
+                "y": 0.0,
+                "z": 0.0
+            },
+            "linear_velocity": {
+                "x": 0.0,
+                "y": 0.0,
+                "z": 0.0
+            },
+            "angular_velocity": {
+                "x": 10.0,
+                "y": 0.0,
+                "z": 0.0
+            },
+            "geometry": {
+                "type": "sphere",
+                "radius": 0.5
+            },
+            "visual": {
+                "color": {
+                    "r": 0.1,
+                    "g": 1.0,
+                    "b": 0.2
+                },
+                "transparency": 0.8,
+                "smooth_shade": true,
+                "edge_width": 0.0
+            }
+        },
+        {
+            "id": 1,
+            "mass": 1.0,
+            "fixed": true,
+            "position": {
+                "x": 0.0,
+                "y": 0.0,
+                "z": 0.0
+            },
+            "orientation": {
+                "w": 1.0,
+                "x": 0.0,
+                "y": 0.0,
+                "z": 0.0
+            },
+            "geometry": {
+                "type": "box",
+                "dimensions": {
+                    "x": 10.0,
+                    "y": 0.4,
+                    "z": 10.0
+                }
+            },
+            "visual": {
+                "color": {
+                    "r": 0.2,
+                    "g": 0.2,
+                    "b": 0.2
+                },
+                "transparency": 0.4,
+                "smooth_shade": false,
+                "edge_width": 1.0
+            }
+        }
+    ],
+    "physics": {
+        "gravity": {
+            "x": 0.0,
+            "y": -9.81,
+            "z": 0.0
+        },
+        "time_step": 0.01,
+        "solver_iterations": 10
+    }
+}

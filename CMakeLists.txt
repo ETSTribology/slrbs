@@ -86,6 +86,17 @@ FetchContent_Declare(
 # Actually download and configure them
 FetchContent_MakeAvailable(polyscope eigen)
 
+FetchContent_Declare(
+  nlohmann_json
+  GIT_REPOSITORY https://github.com/nlohmann/json.git
+  GIT_TAG        v3.11.2
+  GIT_SHALLOW    TRUE
+)
+FetchContent_GetProperties(nlohmann_json)
+if(NOT nlohmann_json_POPULATED)
+  FetchContent_Populate(nlohmann_json)
+endif()
+
 file(GLOB_RECURSE SRC CONFIGURE_DEPENDS
      src/*.cpp
      include/*.h)
@@ -98,6 +109,7 @@ add_executable(slrbs ${SRC})
 #  Target configuration
 # ─────────────────────────────────────────────────────────────────────────────
 target_include_directories(slrbs PRIVATE
+${nlohmann_json_SOURCE_DIR}/include
   ${CMAKE_CURRENT_SOURCE_DIR}/include
   ${eigen_SOURCE_DIR})
 
