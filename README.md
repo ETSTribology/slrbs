@@ -6,43 +6,116 @@
 [![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20Linux%20%7C%20macOS-lightgrey.svg)](https://github.com/yourusername/SLRBS)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](https://github.com/yourusername/SLRBS/pulls)
 
-A simple, lightweight rigid body simulation engine. 
+A simple, lightweight rigid body simulation engine.
 
-I developed this rigid body simulator primarily for the purposes of teaching. It has been used during my course work at the [École de technologie supérieure](https://www.etsmtl.ca/) for our [SIGGRAPH course](https://siggraphcontact.github.io/) on simulating contact. 
+Developed primarily for teaching, SLRBS has been used at the [École de technologie supérieure](https://www.etsmtl.ca/) in the [SIGGRAPH contact simulation course](https://siggraphcontact.github.io/). Feel free to use it in your own projects.
 
-Please feel free to use it for your own projects.
+---
 
-## Getting started
+## Table of Contents
 
-The simulator can be configured and compiled using CMake. The following steps should work on Windows with Visual Studio 2022 installed:
+1. [Getting Started](#getting-started)
+2. [Dependencies](#dependencies)
+3. [Building](#building)
+
+   * [Release Build](#release-build)
+   * [Debug Build](#debug-build)
+4. [Running the Executable](#running-the-executable)
+5. [Creating Scenarios](#creating-scenarios)
+6. [License](#license)
+
+---
+
+## Getting Started
+
+Clone the repository and create a build directory:
 
 ```bash
-mkdir build/
-cd build/
-cmake ..\CMakeLists.txt -G "Visual Studio 17 2022"
-cmake --build .
-```
-
-For Linux or macOS:
-
-```bash
+git clone https://github.com/yourusername/SLRBS.git
+cd SLRBS
 mkdir build
 cd build
-cmake ..
-make
 ```
 
+## Dependencies
 
-**Creating scenarios**
+* **Eigen** (included in `3rdParty/Eigen3`)
+* **Polyscope** (included in `3rdParty/polyscope`)
+* **Qt5** (Core, Gui, OpenGL) for the viewer GUI
+* CMake 3.15 or higher
 
-The file *include/rigidbody/Scenarios.h* shows some examples of how to create scenes using the various collision geometries and joint types.
+## Building
 
+You can configure and build either a **Release** or **Debug** version.
 
-**Third party dependencies**
+### Release Build
 
-SLRBS depends on Eigen (https://eigen.tuxfamily.org/) and Polyscope (https://polyscope.run/). Source code for both libraries is provided in the *3rdParty* folder
+Optimized for performance.
 
-Eigen 3.x uses the [Mozilla Public License v2](3rdParty/Eigen3/include/eigen3/Eigen/Core).
+**Windows (Visual Studio 2022)**
 
-Polyscope uses the [MIT License](3rdParty/polyscope/LICENSE).
+```powershell
+cmake ..\ -G "Visual Studio 17 2022" -DCMAKE_BUILD_TYPE=Release
+cmake --build . --config Release
+```
 
+**Linux/macOS (Makefile)**
+
+```bash
+cmake .. -DCMAKE_BUILD_TYPE=Release
+make -j$(nproc)
+```
+
+The release executable will be:
+
+* **Windows**: `build/Release/slrbs.exe`
+* **Linux/macOS**: `build/slrbs`
+
+### Debug Build
+
+Includes debug symbols and no optimization for easier debugging.
+
+**Windows (Visual Studio 2022)**
+
+```powershell
+cmake ..\ -G "Visual Studio 17 2022" -DCMAKE_BUILD_TYPE=Debug
+cmake --build . --config Debug
+```
+
+**Linux/macOS (Makefile)**
+
+```bash
+cmake .. -DCMAKE_BUILD_TYPE=Debug
+make -j$(nproc)
+```
+
+The debug executable will be:
+
+* **Windows**: `build/Debug/slrbs.exe`
+* **Linux/macOS**: `build/slrbs`
+
+## Running the Executable
+
+After building, you can run the simulator from the build directory:
+
+```bash
+# On Windows (PowerShell)
+./Release/slrbs.exe           # for the release build
+# or
+./Debug/slrbs.exe             # for the debug build
+
+# On Linux/macOS
+./slrbs
+```
+
+Use the GUI to select built-in scenarios or load custom JSON scenarios.
+
+## Creating Scenarios
+
+See `include/rigidbody/Scenarios.h` for examples of how to programmatically define scenarios with various geometries and joints.
+
+## License
+
+* **SLRBS** is licensed under the **MIT License**.
+* **Eigen** is under the **MPL-2.0** (see `3rdParty/Eigen3`).
+* **Polyscope** is under the **MIT License** (see `3rdParty/polyscope/LICENSE`).
