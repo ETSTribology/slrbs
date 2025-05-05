@@ -5,10 +5,12 @@
 #include "rigidbody/RigidBodySystem.h"
 
 #include <Eigen/Dense>
+#include <limits>
 
 namespace
 {
-    static inline void multAndSub(const JBlock &G, const Eigen::Vector3f &x, const Eigen::Vector3f &y, const float &a, Eigen::VectorBlock<Eigen::VectorXf> &b)
+    static inline void multAndSub(const JBlock &G, const Eigen::Vector3f &x, const Eigen::Vector3f &y,
+                                  float a, Eigen::VectorBlock<Eigen::VectorXf> &b)
     {
         b -= a * G.col(0) * x(0);
         b -= a * G.col(1) * x(1);
@@ -18,99 +20,74 @@ namespace
         b -= a * G.col(5) * y(2);
     }
 
-    // Computes the right-hand side vector of the Schur complement system:
-    //      b = -phi/h - J*vel - dt*JMinv*force
-    //
-    static inline void buildRHS(const std::vector<Joint*>& joints, float h, Eigen::VectorXf& b)
+    static inline void buildRHS(const std::vector<Joint *> &joints, float h, Eigen::VectorXf &b)
     {
-        const float hinv = 1.0f / h;
+        const float hinv  = 1.0f / h;
         const float gamma = 0.3f;
-        
-        for (Joint* j : joints)
+
+        for (Joint *j : joints)
         {
             b.segment(j->idx, j->dim) = -hinv * gamma * j->phi;
 
             if (!j->body0->fixed)
             {
-                // Create a single object that will be reused
-                auto segment = b.segment(j->idx, j->dim);
-                multAndSub(j->J0Minv, j->body0->f, j->body0->tau, h, segment);
-                multAndSub(j->J0, j->body0->xdot, j->body0->omega, 1.0f, segment);
+                auto seg = b.segment(j->idx, j->dim);
+                multAndSub(j->J0Minv, j->body0->f,   j->body0->tau,  h,   seg);
+                multAndSub(j->J0,      j->body0->xdot, j->body0->omega, 1.0f, seg);
             }
             if (!j->body1->fixed)
             {
-                // Create a single object that will be reused
-                auto segment = b.segment(j->idx, j->dim);
-                multAndSub(j->J1Minv, j->body1->f, j->body1->tau, h, segment);
-                multAndSub(j->J1, j->body1->xdot, j->body1->omega, 1.0f, segment);
+                auto seg = b.segment(j->idx, j->dim);
+                multAndSub(j->J1Minv, j->body1->f,   j->body1->tau,  h,   seg);
+                multAndSub(j->J1,      j->body1->xdot, j->body1->omega, 1.0f, seg);
             }
         }
     }
 
-    // Loop over all other contacts for a body and compute modifications to the rhs vector b:
-    //           x -= (JMinv*Jother^T) * lambda_other
-    //
-    static inline void accumulateCoupledContactsAndJoints(Joint *j, const JBlock &JMinv, const RigidBody *body, const Eigen::VectorXf &x, Eigen::VectorXf &Ax)
+    static inline void accumulateCoupled(const Joint *j, const JBlock &JMinv, const RigidBody *body,
+                                         const Eigen::VectorXf &x, Eigen::VectorXf &Ax)
     {
         for (Joint *jj : body->joints)
         {
-            if (jj != j)
-            {
-                if (body == jj->body0)
-                {
-                    Ax.segment(j->idx, j->dim) += JMinv * (jj->J0.transpose() * x.segment(jj->idx, jj->dim));
-                }
-                else
-                {
-                    Ax.segment(j->idx, j->dim) += JMinv * (jj->J1.transpose() * x.segment(jj->idx, jj->dim));
-                }
-            }
+            if (jj == j) continue;
+            const auto segOther = x.segment(jj->idx, jj->dim);
+            Ax.segment(j->idx, j->dim) += JMinv * ((body == jj->body0 ? jj->J0 : jj->J1).transpose() * segOther);
         }
     }
 
     static inline void computeAx(const std::vector<Joint *> &joints, const Eigen::VectorXf &x, Eigen::VectorXf &Ax)
     {
-        static const float eps = 1e-9f;
+        constexpr float eps = 1e-9f;   // to keep A positive‑definite
         Ax.setZero();
         for (Joint *j : joints)
         {
+            Ax.segment(j->idx, j->dim).noalias() += eps * x.segment(j->idx, j->dim);
+
             const RigidBody *body0 = j->body0;
             const RigidBody *body1 = j->body1;
-
-            Ax.segment(j->idx, j->dim) += eps * x.segment(j->idx, j->dim);
 
             if (!body0->fixed)
             {
                 Ax.segment(j->idx, j->dim) += j->J0Minv * (j->J0.transpose() * x.segment(j->idx, j->dim));
-                accumulateCoupledContactsAndJoints(j, j->J0Minv, body0, x, Ax);
+                accumulateCoupled(j, j->J0Minv, body0, x, Ax);
             }
-
             if (!body1->fixed)
             {
                 Ax.segment(j->idx, j->dim) += j->J1Minv * (j->J1.transpose() * x.segment(j->idx, j->dim));
-                accumulateCoupledContactsAndJoints(j, j->J1Minv, body1, x, Ax);
+                accumulateCoupled(j, j->J1Minv, body1, x, Ax);
             }
         }
     }
-}
+} // anonymous namespace
 
-SolverConjResidual::SolverConjResidual(RigidBodySystem *_rigidBodySystem) : Solver(_rigidBodySystem)
-{
-}
+SolverConjResidual::SolverConjResidual(RigidBodySystem *system) : Solver(system) {}
 
 void SolverConjResidual::solve(float h)
 {
-    const auto &bodies = m_rigidBodySystem->getBodies();
     const auto &joints = m_rigidBodySystem->getJoints();
-    const unsigned int n_bodies = bodies.size();
-    const unsigned int n_joints = joints.size(); // Fixed: was incorrectly using bodies.size()
 
     unsigned int idx = 0;
-    for (Joint *j : joints)
-    {
-        j->idx = idx;
-        idx += j->dim;
-    }
+    for (Joint *j : joints) { j->idx = idx; idx += j->dim; }
 
     Eigen::VectorXf x(idx), r(idx), p(idx), b(idx), Ax(idx), Ap(idx), Ar(idx), hi(idx), lo(idx);
 
@@ -119,41 +96,32 @@ void SolverConjResidual::solve(float h)
     lo.setConstant(-std::numeric_limits<float>::max());
     buildRHS(joints, h, b);
 
-    // Compute initial Ax and residual
     computeAx(joints, x, Ax);
     r = b - Ax;
     p = r;
-
     computeAx(joints, p, Ap);
     computeAx(joints, r, Ar);
 
-    float rAr = (r.dot(Ar));
+    float rAr   = r.dot(Ar);
     float pATAp = Ap.dot(Ap);
-    for (int i = 0; i < m_maxIter; ++i)
+
+    for (int iter = 0; iter < m_maxIter && rAr > 1e-12f && pATAp > 1e-12f; ++iter)
     {
-        if (rAr < 1e-12f)
-            break;
-        if (pATAp < 1e-12f)
-            break;
-
-        float alpha = rAr / pATAp;
-
+        const float alpha = rAr / pATAp;
         x += alpha * p;
         r -= alpha * Ap;
-        computeAx(joints, r, Ar);
-        const float rAr_next = r.dot(Ar);
 
-        const float beta = rAr_next / rAr;
-        p = r + beta * p;
+        computeAx(joints, r, Ar);
+        const float rArNext = r.dot(Ar);
+
+        const float beta = rArNext / rAr;
+        p  = r + beta * p;
         Ap = Ar + beta * Ap;
 
-        rAr = rAr_next;
+        rAr   = rArNext;
         pATAp = Ap.dot(Ap);
     }
 
-    // Copy joint impulses
     for (Joint *j : joints)
-    {
         j->lambda = x.segment(j->idx, j->dim);
-    }
 }
