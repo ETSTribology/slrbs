@@ -16,20 +16,18 @@
 #include <algorithm>
 using json = nlohmann::json;
 
-std::string ScenarioLoader::getScenariosPath()
-{
+std::string ScenarioLoader::getScenariosPath() {
     // Try common paths
     std::vector<std::string> paths = {
         "./resources/scenarios/",
         "../resources/scenarios/",
         "../../resources/scenarios/",
         "./",
-        "../"};
+        "../"
+    };
 
-    for (const auto &path : paths)
-    {
-        if (std::filesystem::exists(path))
-        {
+    for (const auto &path : paths) {
+        if (std::filesystem::exists(path)) {
             return path;
         }
     }
@@ -38,316 +36,185 @@ std::string ScenarioLoader::getScenariosPath()
     return "./";
 }
 
-std::vector<std::string> ScenarioLoader::listAvailableScenarios()
-{
+std::vector<std::string> ScenarioLoader::listAvailableScenarios() {
     std::vector<std::string> scenarios;
 
-    try
-    {
+    try {
         std::string scenariosPath = getScenariosPath();
         std::cout << "Searching for scenarios in: " << scenariosPath << std::endl;
 
         // List all JSON files in scenarios directory
-        for (const auto &entry : std::filesystem::directory_iterator(scenariosPath))
-        {
-            if (entry.is_regular_file() && entry.path().extension() == ".json")
-            {
-                // Add filename to the list
+        for (const auto &entry : std::filesystem::directory_iterator(scenariosPath)) {
+            if (entry.is_regular_file() && entry.path().extension() == ".json") {
                 scenarios.push_back(entry.path().filename().string());
             }
         }
-    }
-    catch (const std::exception &e)
-    {
+    } catch (const std::exception &e) {
         std::cerr << "Error listing scenarios: " << e.what() << std::endl;
     }
 
     return scenarios;
 }
 
-bool ScenarioLoader::loadFromFile(RigidBodySystem &system, const std::string &filename)
-{
-    try
-    {
-        // First try direct path
+bool ScenarioLoader::loadFromFile(RigidBodySystem &system, const std::string &filename) {
+    try {
         std::ifstream file(filename);
-
-        // If file doesn't exist, try with scenarios path
-        if (!file.is_open())
-        {
+        if (!file.is_open()) {
             std::string fullPath = getScenariosPath() + filename;
             std::cout << "Trying to open scenario from: " << fullPath << std::endl;
             file.open(fullPath);
-
-            if (!file.is_open())
-            {
+            if (!file.is_open()) {
                 std::cerr << "Failed to open file: " << filename << std::endl;
                 return false;
             }
         }
-
-        // Read JSON content
         std::stringstream buffer;
         buffer << file.rdbuf();
-
         return parseScenario(system, buffer.str());
-    }
-    catch (const std::exception &e)
-    {
+    } catch (const std::exception &e) {
         std::cerr << "Error loading scenario from JSON: " << e.what() << std::endl;
         return false;
     }
 }
 
-bool ScenarioLoader::parseScenario(RigidBodySystem &system, const std::string &jsonContent)
-{
-    try
-    {
-        // Parse JSON
+bool ScenarioLoader::parseScenario(RigidBodySystem &system, const std::string &jsonContent) {
+    try {
         json scenario = json::parse(jsonContent);
+        std::cout << "Loading scenario: " << scenario.at("name").get<std::string>() << std::endl;
 
-        std::cout << "Loading scenario: " << scenario["name"].get<std::string>() << std::endl;
-
-        // Clear existing system - but NOT the visualization structures
+        // Clear system and visualization
         system.clear();
-
-        // Clear previous visual properties
         g_visualProperties.clear();
 
-        // Map to store bodies by ID for joint creation
-        std::map<int, RigidBody *> bodyMap;
+        std::map<int, RigidBody*> bodyMap;
+        int bodyIndex = 0;
 
         // Load bodies
-        int bodyIndex = 0;
-        for (const auto &bodyJson : scenario["bodies"])
-        {
+        for (const auto &bodyJson : scenario.at("bodies")) {
             RigidBody *body = nullptr;
+            Geometry *geometry = nullptr;
 
             // Create geometry
-            Geometry *geometry = nullptr;
-            if (bodyJson.contains("geometry"))
-            {
+            if (bodyJson.count("geometry") > 0) {
                 const auto &geo = bodyJson["geometry"];
-                std::string type = geo["type"];
-
-                if (type == "sphere")
-                {
-                    float radius = geo["radius"];
+                std::string type = geo.at("type").get<std::string>();
+                if (type == "sphere") {
+                    float radius = geo.at("radius").get<float>();
                     geometry = new Sphere(radius);
-                    body = new RigidBody(bodyJson["mass"], geometry, createSphere(radius));
-                }
-                else if (type == "box")
-                {
+                    body = new RigidBody(bodyJson.at("mass").get<float>(), geometry, createSphere(radius));
+                } else if (type == "box") {
                     Eigen::Vector3f dim(
-                        geo["dimensions"]["x"],
-                        geo["dimensions"]["y"],
-                        geo["dimensions"]["z"]);
+                        geo.at("dimensions")["x"].get<float>(),
+                        geo.at("dimensions")["y"].get<float>(),
+                        geo.at("dimensions")["z"].get<float>());
                     geometry = new Box(dim);
-                    body = new RigidBody(bodyJson["mass"], geometry, createBox(dim));
-                }
-                else if (type == "cylinder")
-                {
-                    float height = geo["height"];
-                    float radius = geo["radius"];
+                    body = new RigidBody(bodyJson.at("mass").get<float>(), geometry, createBox(dim));
+                } else if (type == "cylinder") {
+                    float height = geo.at("height").get<float>();
+                    float radius = geo.at("radius").get<float>();
                     geometry = new Cylinder(height, radius);
-                    body = new RigidBody(bodyJson["mass"], geometry, createCylinder(16, radius, height));
-                }
-                else if (type == "plane")
-                {
+                    body = new RigidBody(bodyJson.at("mass").get<float>(), geometry, createCylinder(16, radius, height));
+                } else if (type == "plane") {
                     Eigen::Vector3f point(
-                        geo["point"]["x"],
-                        geo["point"]["y"],
-                        geo["point"]["z"]);
+                        geo.at("point")["x"].get<float>(),
+                        geo.at("point")["y"].get<float>(),
+                        geo.at("point")["z"].get<float>());
                     Eigen::Vector3f normal(
-                        geo["normal"]["x"],
-                        geo["normal"]["y"],
-                        geo["normal"]["z"]);
+                        geo.at("normal")["x"].get<float>(),
+                        geo.at("normal")["y"].get<float>(),
+                        geo.at("normal")["z"].get<float>());
                     geometry = new Plane(point, normal);
-                    body = new RigidBody(bodyJson["mass"], geometry, ""); // Planes don't have mesh visualization
+                    body = new RigidBody(bodyJson.at("mass").get<float>(), geometry, "");
                 }
             }
 
-            if (!body)
-            {
+            if (!body) {
                 std::cerr << "Failed to create body from JSON" << std::endl;
                 continue;
             }
 
-            // Set properties
-            body->fixed = bodyJson["fixed"];
-
-            // Position
+            // Set body properties
+            body->fixed = bodyJson.value("fixed", false);
             body->x = Eigen::Vector3f(
-                bodyJson["position"]["x"],
-                bodyJson["position"]["y"],
-                bodyJson["position"]["z"]);
-
-            // Orientation
+                bodyJson.at("position")["x"].get<float>(),
+                bodyJson.at("position")["y"].get<float>(),
+                bodyJson.at("position")["z"].get<float>());
             body->q = Eigen::Quaternionf(
-                bodyJson["orientation"]["w"],
-                bodyJson["orientation"]["x"],
-                bodyJson["orientation"]["y"],
-                bodyJson["orientation"]["z"]);
+                bodyJson.at("orientation")["w"].get<float>(),
+                bodyJson.at("orientation")["x"].get<float>(),
+                bodyJson.at("orientation")["y"].get<float>(),
+                bodyJson.at("orientation")["z"].get<float>());
 
-            // Linear velocity if present
-            if (bodyJson.contains("linear_velocity"))
-            {
+            if (bodyJson.count("linear_velocity") > 0) {
                 body->xdot = Eigen::Vector3f(
-                    bodyJson["linear_velocity"]["x"],
-                    bodyJson["linear_velocity"]["y"],
-                    bodyJson["linear_velocity"]["z"]);
+                    bodyJson["linear_velocity"]["x"].get<float>(),
+                    bodyJson["linear_velocity"]["y"].get<float>(),
+                    bodyJson["linear_velocity"]["z"].get<float>());
             }
-
-            // Angular velocity if present
-            if (bodyJson.contains("angular_velocity"))
-            {
+            if (bodyJson.count("angular_velocity") > 0) {
                 body->omega = Eigen::Vector3f(
-                    bodyJson["angular_velocity"]["x"],
-                    bodyJson["angular_velocity"]["y"],
-                    bodyJson["angular_velocity"]["z"]);
+                    bodyJson["angular_velocity"]["x"].get<float>(),
+                    bodyJson["angular_velocity"]["y"].get<float>(),
+                    bodyJson["angular_velocity"]["z"].get<float>());
             }
 
-            // Store visual properties for later use
-            if (bodyJson.contains("visual") && body->mesh)
-            {
+            // Visual properties
+            if (bodyJson.count("visual") > 0 && body->mesh) {
                 const auto &visual = bodyJson["visual"];
 
-                // Basic properties with defaults
                 float r = 0.5f, g = 0.5f, b = 0.5f;
-                float transparency = 0.0f;
-                bool smoothShade = false;
-                float edgeWidth = 1.0f;
+                float transparency = visual.value("transparency", 0.0f);
+                bool smoothShade = visual.value("smooth_shade", false);
+                float edgeWidth = visual.value("edge_width", 1.0f);
 
-                // Texture properties with defaults
+                // Default visualization and debug
+                bool showWireframe = false, showNormals = false, showBoundingBox = false;
+                float normalLength = 0.1f;
+                bool showContactPoints = false, showInertiaEllipsoid = false;
+                float shininess = 0.0f, reflectivity = 0.0f;
                 bool showTextureSpace = false;
                 std::string textureParamName = "uv_coords";
-                std::optional<std::string> texturePath = std::nullopt;
-
-                // Material properties with defaults
-                float shininess = 0.0f;
-                float reflectivity = 0.0f;
-
-                // Visualization options with defaults
-                bool showWireframe = false;
-                bool showNormals = false;
-                float normalLength = 0.1f;
-                bool showBoundingBox = false;
-
-                // Debug visualization with defaults
-                bool showContactPoints = false;
-                bool showInertiaEllipsoid = false;
+                std::optional<std::string> texturePath;
                 float debugColorR = 1.0f, debugColorG = 1.0f, debugColorB = 0.0f;
 
-                // Basic properties
-                if (visual.contains("color"))
-                {
-                    r = visual["color"]["r"];
-                    g = visual["color"]["g"];
-                    b = visual["color"]["b"];
+                if (visual.count("color") > 0) {
+                    const auto &col = visual["color"];
+                    r = col.value("r", r);
+                    g = col.value("g", g);
+                    b = col.value("b", b);
                 }
 
-                if (visual.contains("transparency"))
-                {
-                    transparency = visual["transparency"];
+                if (visual.count("material") > 0) {
+                    const auto &mat = visual["material"];
+                    shininess = mat.value("shininess", shininess);
+                    reflectivity = mat.value("reflectivity", reflectivity);
                 }
 
-                if (visual.contains("smooth_shade"))
-                {
-                    smoothShade = visual["smooth_shade"];
+                if (visual.count("texture") > 0) {
+                    const auto &tex = visual["texture"];
+                    showTextureSpace = tex.value("show_texture_space", showTextureSpace);
+                    if (tex.count("param_name") > 0) textureParamName = tex["param_name"].get<std::string>();
+                    if (tex.count("path") > 0) texturePath = tex["path"].get<std::string>();
                 }
-
-                if (visual.contains("edge_width"))
-                {
-                    edgeWidth = visual["edge_width"];
-                }
-
-                // Parse texture properties if present
-                if (visual.contains("texture"))
-                {
-                    const auto &texture = visual["texture"];
-
-                    if (texture.contains("show_texture_space"))
-                    {
-                        showTextureSpace = texture["show_texture_space"];
-                    }
-
-                    if (texture.contains("param_name"))
-                    {
-                        textureParamName = texture["param_name"];
-                    }
-
-                    if (texture.contains("path"))
-                    {
-                        texturePath = texture["path"];
-                    }
-                }
-
-                // Parse material properties if present
-                if (visual.contains("material"))
-                {
-                    const auto &material = visual["material"];
-
-                    if (material.contains("shininess"))
-                    {
-                        shininess = material["shininess"];
-                    }
-
-                    if (material.contains("reflectivity"))
-                    {
-                        reflectivity = material["reflectivity"];
-                    }
-                }
-
-                // Parse visualization options if present
-                if (visual.contains("visualization"))
-                {
+                if (visual.count("visualization") > 0) {
                     const auto &viz = visual["visualization"];
-
-                    if (viz.contains("wireframe"))
-                    {
-                        showWireframe = viz["wireframe"];
-                    }
-
-                    if (viz.contains("normals"))
-                    {
-                        showNormals = viz["normals"];
-                    }
-
-                    if (viz.contains("normal_length"))
-                    {
-                        normalLength = viz["normal_length"];
-                    }
-
-                    if (viz.contains("bounding_box"))
-                    {
-                        showBoundingBox = viz["bounding_box"];
+                    showWireframe = viz.value("wireframe", showWireframe);
+                    showNormals = viz.value("normals", showNormals);
+                    showBoundingBox = viz.value("bounding_box", showBoundingBox);
+                    normalLength = viz.value("normal_length", normalLength);
+                }
+                if (visual.count("debug") > 0) {
+                    const auto &dbg = visual["debug"];
+                    showContactPoints = dbg.value("contact_points", showContactPoints);
+                    showInertiaEllipsoid = dbg.value("inertia_ellipsoid", showInertiaEllipsoid);
+                    if (dbg.count("color") > 0) {
+                        const auto &c = dbg["color"];
+                        debugColorR = c.value("r", debugColorR);
+                        debugColorG = c.value("g", debugColorG);
+                        debugColorB = c.value("b", debugColorB);
                     }
                 }
 
-                // Parse debug visualization if present
-                if (visual.contains("debug"))
-                {
-                    const auto &debug = visual["debug"];
-
-                    if (debug.contains("contact_points"))
-                    {
-                        showContactPoints = debug["contact_points"];
-                    }
-
-                    if (debug.contains("inertia_ellipsoid"))
-                    {
-                        showInertiaEllipsoid = debug["inertia_ellipsoid"];
-                    }
-
-                    if (debug.contains("color"))
-                    {
-                        debugColorR = debug["color"]["r"];
-                        debugColorG = debug["color"]["g"];
-                        debugColorB = debug["color"]["b"];
-                    }
-                }
-
-                // Add all the properties to the visual properties manager
                 g_visualProperties.addBodyProperties(
                     bodyIndex, r, g, b, transparency, smoothShade, edgeWidth,
                     showTextureSpace, textureParamName, texturePath,
@@ -355,130 +222,77 @@ bool ScenarioLoader::parseScenario(RigidBodySystem &system, const std::string &j
                     showWireframe, showNormals, normalLength, showBoundingBox,
                     showContactPoints, showInertiaEllipsoid,
                     debugColorR, debugColorG, debugColorB);
-
-                body->visualProperties["colorR"] = r;
-                body->visualProperties["colorG"] = g;
-                body->visualProperties["colorB"] = b;
-                body->visualProperties["transparency"] = transparency;
-                body->visualProperties["smoothShade"] = smoothShade ? 1.0f : 0.0f;
-                body->visualProperties["edgeWidth"] = edgeWidth;
-                body->visualProperties["shininess"] = shininess;
-                body->visualProperties["reflectivity"] = reflectivity;
-                body->visualProperties["showWireframe"] = showWireframe ? 1.0f : 0.0f;
-                body->visualProperties["showNormals"] = showNormals ? 1.0f : 0.0f;
-                body->visualProperties["normalLength"] = normalLength;
-                body->visualProperties["showBoundingBox"] = showBoundingBox ? 1.0f : 0.0f;
             }
 
-            // Add body to the bodyMap using ID if available
-            if (bodyJson.contains("id"))
-            {
-                int id = bodyJson["id"];
+            if (bodyJson.count("id") > 0) {
+                int id = bodyJson["id"].get<int>();
                 bodyMap[id] = body;
             }
-
-            // Add body to the system
             system.addBody(body);
             bodyIndex++;
         }
 
-        // Process joints if present
-        if (scenario.contains("joints"))
-        {
-            for (const auto &jointJson : scenario["joints"])
-            {
-                // Get bodies
-                int body0Id = jointJson["body0_id"];
-                int body1Id = jointJson["body1_id"];
-
-                if (bodyMap.find(body0Id) == bodyMap.end() || bodyMap.find(body1Id) == bodyMap.end())
-                {
+        // Process joints
+        if (scenario.count("joints") > 0) {
+            for (const auto &jointJson : scenario["joints"]) {
+                int b0 = jointJson.at("body0_id").get<int>();
+                int b1 = jointJson.at("body1_id").get<int>();
+                if (bodyMap.find(b0) == bodyMap.end() || bodyMap.find(b1) == bodyMap.end()) {
                     std::cerr << "Invalid body IDs in joint definition" << std::endl;
                     continue;
                 }
-
-                std::string type = jointJson["type"];
                 Joint *joint = nullptr;
-
-                if (type == "hinge")
-                {
-                    Eigen::Vector3f r0(
-                        jointJson["body0_offset"]["x"],
-                        jointJson["body0_offset"]["y"],
-                        jointJson["body0_offset"]["z"]);
-
-                    Eigen::Vector3f r1(
-                        jointJson["body1_offset"]["x"],
-                        jointJson["body1_offset"]["y"],
-                        jointJson["body1_offset"]["z"]);
-
+                std::string type = jointJson.at("type").get<std::string>();
+                Eigen::Vector3f r0, r1;
+                if (type == "hinge") {
+                    r0 = {jointJson.at("body0_offset")["x"].get<float>(),
+                          jointJson.at("body0_offset")["y"].get<float>(),
+                          jointJson.at("body0_offset")["z"].get<float>()};
+                    r1 = {jointJson.at("body1_offset")["x"].get<float>(),
+                          jointJson.at("body1_offset")["y"].get<float>(),
+                          jointJson.at("body1_offset")["z"].get<float>()};
                     Eigen::Quaternionf q0(
-                        jointJson["body0_orientation"]["w"],
-                        jointJson["body0_orientation"]["x"],
-                        jointJson["body0_orientation"]["y"],
-                        jointJson["body0_orientation"]["z"]);
-
+                        jointJson.at("body0_orientation")["w"].get<float>(),
+                        jointJson.at("body0_orientation")["x"].get<float>(),
+                        jointJson.at("body0_orientation")["y"].get<float>(),
+                        jointJson.at("body0_orientation")["z"].get<float>());
                     Eigen::Quaternionf q1(
-                        jointJson["body1_orientation"]["w"],
-                        jointJson["body1_orientation"]["x"],
-                        jointJson["body1_orientation"]["y"],
-                        jointJson["body1_orientation"]["z"]);
-
-                    joint = new Hinge(bodyMap[body0Id], bodyMap[body1Id], r0, q0, r1, q1);
+                        jointJson.at("body1_orientation")["w"].get<float>(),
+                        jointJson.at("body1_orientation")["x"].get<float>(),
+                        jointJson.at("body1_orientation")["y"].get<float>(),
+                        jointJson.at("body1_orientation")["z"].get<float>());
+                    joint = new Hinge(bodyMap[b0], bodyMap[b1], r0, q0, r1, q1);
+                } else if (type == "spherical") {
+                    r0 = {jointJson.at("body0_offset")["x"].get<float>(),
+                          jointJson.at("body0_offset")["y"].get<float>(),
+                          jointJson.at("body0_offset")["z"].get<float>()};
+                    r1 = {jointJson.at("body1_offset")["x"].get<float>(),
+                          jointJson.at("body1_offset")["y"].get<float>(),
+                          jointJson.at("body1_offset")["z"].get<float>()};
+                    joint = new Spherical(bodyMap[b0], bodyMap[b1], r0, r1);
                 }
-                else if (type == "spherical")
-                {
-                    Eigen::Vector3f r0(
-                        jointJson["body0_offset"]["x"],
-                        jointJson["body0_offset"]["y"],
-                        jointJson["body0_offset"]["z"]);
-
-                    Eigen::Vector3f r1(
-                        jointJson["body1_offset"]["x"],
-                        jointJson["body1_offset"]["y"],
-                        jointJson["body1_offset"]["z"]);
-
-                    joint = new Spherical(bodyMap[body0Id], bodyMap[body1Id], r0, r1);
-                }
-
-                if (joint)
-                {
-                    system.addJoint(joint);
-                }
+                if (joint) system.addJoint(joint);
             }
         }
 
-        // Apply physics settings if available
-        if (scenario.contains("physics"))
-        {
+        // Physics settings
+        if (scenario.count("physics") > 0) {
             const auto &physics = scenario["physics"];
-
-            if (physics.contains("solver_iterations"))
-            {
-                system.setSolverIterations(physics["solver_iterations"]);
+            if (physics.count("solver_iterations") > 0) {
+                system.setSolverIterations(physics.at("solver_iterations").get<int>());
             }
-
-            // Add gravity handling
-            if (physics.contains("gravity"))
-            {
-                // Get gravity vector from JSON
-                Eigen::Vector3f gravity(
-                    physics["gravity"]["x"],
-                    physics["gravity"]["y"],
-                    physics["gravity"]["z"]);
-
-                // Set gravity in the rigid body system
-                system.setGravity(gravity);
-
-                std::cout << "Set gravity to: [" << gravity.x() << ", "
-                          << gravity.y() << ", " << gravity.z() << "]" << std::endl;
+            if (physics.count("gravity") > 0) {
+                Eigen::Vector3f grav(
+                    physics.at("gravity")["x"].get<float>(),
+                    physics.at("gravity")["y"].get<float>(),
+                    physics.at("gravity")["z"].get<float>());
+                system.setGravity(grav);
+                std::cout << "Set gravity to: [" << grav.x() << ", " << grav.y() << ", " << grav.z() << "]" << std::endl;
             }
         }
 
         return true;
-    }
-    catch (const std::exception &e)
-    {
+    } catch (const std::exception &e) {
         std::cerr << "Error parsing scenario JSON: " << e.what() << std::endl;
         return false;
     }

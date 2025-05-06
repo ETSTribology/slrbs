@@ -84,9 +84,9 @@ jobs:
         run: |
           if [[ "${{ matrix.os }}" == "ubuntu-latest" ]]; then
             sudo apt-get update && sudo apt-get install -y \
-              libopencv-dev qtbase5-dev libgl1-mesa-dev eigen3-dev;
+              libopencv-dev qtbase5-dev libgl1-mesa-dev eigen3-dev libglm-dev;
           elif [[ "${{ matrix.os }}" == "macos-latest" ]]; then
-            brew update && brew install opencv@4 qt@5 eigen;
+            brew update && brew install opencv@4 qt@5 eigen glm;
           fi
 
       - name: Install Qt on Windows
@@ -103,6 +103,7 @@ jobs:
           git clone https://github.com/microsoft/vcpkg ${{ env.VCPKG_ROOT }}
           pushd ${{ env.VCPKG_ROOT }}
           bootstrap-vcpkg.bat
+          ./vcpkg install glm
           popd
 
       - name: Configure CMake

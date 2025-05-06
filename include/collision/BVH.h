@@ -3,7 +3,7 @@
 #include <vector>
 #include <memory>
 #include <glm/glm.hpp>
-#include <polyscope/polyscope.h>
+#include "polyscope/polyscope.h"
 #include <polyscope/surface_mesh.h>
 #include <omp.h>  // Add OpenMP header
 
