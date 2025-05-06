@@ -1,85 +1,138 @@
-name: Build and Test
+name: Build & Test
 
 on:
-  push:          { branches: [main, master, develop] }
-  pull_request:  { branches: [main, master, develop] }
+  push:
+    branches: [ main, master, develop ]
+  pull_request:
+    branches: [ main, master, develop ]
   workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   build:
-    name: ${{ matrix.config.name }}
-    runs-on: ${{ matrix.config.os }}
+    runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
-        config:
-          - { name: "Windows MSVC", os: windows-latest, build_type: Debug,
-              cc: cl, cxx: cl }
-          - { name: "Ubuntu Clang", os: ubuntu-latest, build_type: Release,
-              cc: clang, cxx: clang++ }
-          - { name: "macOS Clang",  os: macos-latest, build_type: Debug,
-              cc: clang, cxx: clang++ }
+        os: [windows-latest, ubuntu-latest, macos-latest]
+        build_type: [Debug, Release]
+        toolchain:
+          - { os: windows-latest, cc: cl, cxx: cl }
+          - { os: ubuntu-latest,  cc: gcc, cxx: g++ }
+          - { os: macos-latest, cc: clang, cxx: clang++ }
+        include:
+          - os: windows-latest
+            cc: cl
+            cxx: cl
+          - os: ubuntu-latest
+            cc: gcc
+            cxx: g++
+          - os: macos-latest
+            cc: clang
+            cxx: clang++
+      # optionally throttle concurrency to 2 in-flight runs
+      # max-parallel: 3
+
+    env:
+      VCPKG_ROOT: ${{ github.workspace }}/vcpkg
+      CC: ${{ matrix.cc }}
+      CXX: ${{ matrix.cxx }}
 
     steps:
-      - uses: actions/checkout@v3
-        with: { submodules: recursive }
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Setup CMake
+        uses: lukka/get-cmake@v3
+        with:
+          cmake-version: '3.23.6'
 
       - name: Setup Ninja
-        uses: ashutoshvarma/setup-ninja@master
-        with: { version: 1.11.0 }
+        uses: actions/setup-ninja@v2
+        with:
+          ninja-version: '1.11.0'
 
-      # ---------- Qt ----------
-      - name: Install Qt (Linux)
-        if: runner.os == 'Linux'
+      - name: Install ccache
+        if: matrix.os != 'windows-latest'
         run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            libgl1-mesa-dev libxrandr-dev libxinerama-dev \
-            libxcursor-dev libxi-dev qtbase5-dev
+          sudo apt-get update && sudo apt-get install -y ccache || true
 
-      - name: Install Qt (macOS)
-        if: runner.os == 'macOS'
+      - name: Cache CPM
+        uses: actions/cache@v4
+        with:
+          path: ./.cmake/CPM_*
+          key: ${{ runner.os }}-cpm-${{ hashFiles('**/cpm/recipes/*.cmake') }}
+
+      - name: Cache LibTorch
+        uses: actions/cache@v4
+        with:
+          path: libtorch
+          key: ${{ runner.os }}-libtorch-2.0.1-${{ matrix.build_type }}
+
+      - name: Cache vcpkg
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.VCPKG_ROOT }}
+          key: ${{ runner.os }}-vcpkg-cache
+
+      - name: Install system dependencies
         run: |
-            brew install qt@5
-            # Preserve any existing prefix list
-            echo "CMAKE_PREFIX_PATH=${CMAKE_PREFIX_PATH:+$CMAKE_PREFIX_PATH:}$(brew --prefix qt@5)/lib/cmake" >> $GITHUB_ENV
-          
+          if [[ "${{ matrix.os }}" == "ubuntu-latest" ]]; then
+            sudo apt-get update && sudo apt-get install -y \
+              libopencv-dev qtbase5-dev libgl1-mesa-dev eigen3-dev;
+          elif [[ "${{ matrix.os }}" == "macos-latest" ]]; then
+            brew update && brew install opencv@4 qt@5 eigen;
+          fi
 
-      - name: Install Qt (Windows)
-        if: runner.os == 'Windows'
+      - name: Install Qt on Windows
+        if: matrix.os == 'windows-latest'
         uses: jurplel/install-qt-action@v3
         with:
           version: '5.15.2'
           arch: win64_msvc2019_64
           cache: true
 
-      # ---------- Build & Test ----------
-      - name: Configure CMake
-        shell: bash
+      - name: Bootstrap vcpkg
+        if: matrix.os == 'windows-latest'
         run: |
-          mkdir -p build && cd build
-          cmake .. -DCMAKE_BUILD_TYPE=${{ matrix.config.build_type }}
-        env:
-          CC:  ${{ matrix.config.cc }}
-          CXX: ${{ matrix.config.cxx }}
+          git clone https://github.com/microsoft/vcpkg ${{ env.VCPKG_ROOT }}
+          pushd ${{ env.VCPKG_ROOT }}
+          bootstrap-vcpkg.bat
+          popd
+
+      - name: Configure CMake
+        run: |
+          mkdir -p build
+          cd build
+          cmake .. -G Ninja \
+            -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} \
+            -DUSE_SYSTEM_OPENCV=OFF \
+            -DUSE_TORCH=OFF \
+            -DUSE_SYSTEM_QT=ON \
+            ${VCPKG_ROOT:+-DCMAKE_TOOLCHAIN_FILE=${VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake}
+        shell: bash
 
       - name: Build
-        shell: bash
         run: |
           cd build
-          cmake --build . --config ${{ matrix.config.build_type }}
-
-      - name: Test
+          cmake --build . --config ${{ matrix.build_type }} --parallel
         shell: bash
+
+      - name: Run tests
         run: |
           cd build
-          ctest --output-on-failure -C ${{ matrix.config.build_type }}
-        continue-on-error: true   # keeps the matrix running on test failures
+          ctest -C ${{ matrix.build_type }} --output-on-failure
+        shell: bash
 
-      - name: Upload Artifacts
+      - name: Upload build artifact
         uses: actions/upload-artifact@v4
         with:
-          name: slrbs-${{ matrix.config.os }}-${{ matrix.config.build_type }}
+          name: slrbs-${{ matrix.os }}-${{ matrix.build_type }}
           path: |
             build/slrbs*
             build/*/slrbs*

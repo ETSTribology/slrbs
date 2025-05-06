@@ -4,6 +4,7 @@
 #include "util/Types.h"
 #include <memory>
 #include <vector>
+#include <map>
 
 class Contact;
 class Joint;
@@ -26,10 +27,14 @@ public:
     RigidBody(float _mass, Geometry* _geometry, const Mesh& _mesh);
 
     static int counter;
+    int id;                             // Unique identifier for the rigid body
 
     void updateInertiaMatrix();
 
-    // Adds @a force at the specific world position @a pos. 
+    // Apply visual properties to the mesh
+    void applyVisualProperties();
+
+    // Adds @a force at the specific world position @a pos.
     void addForceAtPos(const Eigen::Vector3f& pos, const Eigen::Vector3f& force);
 
     // Returns the rigid body linear velocity evaluated at world position @a pos
@@ -37,6 +42,10 @@ public:
 
     bool fixed;                         // Flag for a static rigid body. Default is 'false'.
     float mass;                         // Mass.
+    float restitution;                  // Coefficient of restitution (bounciness)
+    float friction;                     // Coefficient of friction
+    float density;                      // Density of the material
+
     Eigen::Matrix3f I, Iinv;            // Inertia and inverse inertia matrix (global)
     Eigen::Matrix3f Ibody, IbodyInv;    // Inertia and inverse inertia in the local body frame.
     Eigen::Vector3f x;                  // Position.
@@ -55,7 +64,5 @@ public:
     std::vector<Joint*> joints;         // Pointer array of joints involving this body.
 
     polyscope::SurfaceMesh* mesh;       // Used for rendering
-    std::map<std::string, float> visualProperties;
-
-
+    std::map<std::string, float> visualProperties; // Store visual properties
 };

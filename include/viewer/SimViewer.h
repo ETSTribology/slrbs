@@ -4,16 +4,21 @@
 #include <memory>
 #include <vector>
 #include <string>
+#include <map>
+#include <array>
+#include <chrono>
 
 namespace polyscope {
-class SurfaceMesh;
-class PointCloud;
+    class SurfaceMesh;
+    class PointCloud;
+    class CameraParameters;
 }
 
 class Contact;
 class RigidBodySystem;
 class RigidBody;
 class RigidBodySystemState;
+class Joint;
 
 class SimViewer {
 public:
@@ -31,16 +36,17 @@ private:
     void createSwingingBox();
     void createCylinderOnPlane();
     void createCarScene();
-    
+
     // JSON scenario handling methods
     void loadScenarioFromJSON(const std::string& filename);
     void refreshScenariosList();
+    void drawScenarioSelectionGUI();
 
     // Main rendering and GUI methods
     void draw();
     void drawGUI();
-    void drawScenarioSelectionGUI();
-    void preStep(std::vector<RigidBody*>&);
+    void drawColorDebugUI();
+    void preStep(std::vector<RigidBody*>& bodies);
 
 private:
     // Simulation parameters
@@ -54,8 +60,9 @@ private:
     bool m_drawConstraints;             // Enable constraint visualization
     float m_dynamicsTime;               // Compute time for the dynamics step (in ms)
     std::unique_ptr<RigidBodySystemState> m_resetState;
-    
-    // Available JSON scenarios
-    std::vector<std::string> m_availableScenarios;
-    int m_selectedScenario;
+
+    // UI state
+    int m_selectedScenario;             // Currently selected scenario in the UI
+    int m_selectedBodyIndex = -1;       // Currently selected body in the hierarchy view
+    std::vector<std::string> m_availableScenarios; // List of available JSON scenarios
 };

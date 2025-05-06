@@ -15,6 +15,8 @@ public:
 
     virtual void computeJacobian() override;
 
+    std::string getTypeName() const override { return "Hinge"; }
+
 protected:
     // Default constructor (hidden).
     Hinge();

@@ -528,9 +528,9 @@
                     "g": 0.2,
                     "b": 1.0
                 },
-                "transparency": 0.8,
+                "transparency": 1.0,
                 "smooth_shade": true,
-                "edge_width": 0.0
+                "edge_width": 1.0
             }
         }
     ],

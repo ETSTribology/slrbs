@@ -31,7 +31,7 @@ Developed primarily for teaching, SLRBS has been used at the [École de technolo
 Clone the repository and create a build directory:
 
 ```bash
-git clone https://github.com/yourusername/SLRBS.git
+git clone https://github.com/ETSim/SLRBS.git
 cd SLRBS
 mkdir build
 cd build
@@ -55,7 +55,7 @@ Optimized for performance.
 **Windows (Visual Studio 2022)**
 
 ```powershell
-cmake ..\ -G "Visual Studio 17 2022" -DCMAKE_BUILD_TYPE=Release
+cmake .. -G "Visual Studio 17 2022" -DCMAKE_BUILD_TYPE=Release
 cmake --build . --config Release
 ```
 

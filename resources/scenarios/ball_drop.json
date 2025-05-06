@@ -24,8 +24,8 @@
                 "z": 0.0
             },
             "angular_velocity": {
-                "x": 0.0,
-                "y": 0.0,
+                "x": 1.0,
+                "y": 0.5,
                 "z": 0.0
             },
             "geometry": {
@@ -65,8 +65,8 @@
             },
             "angular_velocity": {
                 "x": 0.0,
-                "y": 0.0,
-                "z": 0.0
+                "y": 1.0,
+                "z": 0.5
             },
             "geometry": {
                 "type": "sphere",
@@ -104,9 +104,9 @@
                 "z": 0.0
             },
             "angular_velocity": {
-                "x": 0.0,
+                "x": 0.5,
                 "y": 0.0,
-                "z": 0.0
+                "z": 1.0
             },
             "geometry": {
                 "type": "sphere",
@@ -149,16 +149,11 @@
                 "z": 0.0
             },
             "geometry": {
-                "type": "plane",
-                "point": {
-                    "x": 0.0,
-                    "y": 0.0,
-                    "z": 0.0
-                },
-                "normal": {
-                    "x": 0.0,
-                    "y": 1.0,
-                    "z": 0.0
+                "type": "box",
+                "dimensions": {
+                    "x": 20.0,
+                    "y": 0.2,
+                    "z": 20.0
                 }
             },
             "visual": {
@@ -167,8 +162,8 @@
                     "g": 0.5,
                     "b": 0.5
                 },
-                "transparency": 0.0,
-                "smooth_shade": true,
+                "transparency": 1,
+                "smooth_shade": false,
                 "edge_width": 1.0
             }
         }
@@ -180,6 +175,6 @@
             "z": 0.0
         },
         "time_step": 0.01,
-        "solver_iterations": 10
+        "solver_iterations": 20
     }
 }

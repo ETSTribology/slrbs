@@ -1,9 +1,10 @@
 #pragma once
 
-#include "util/Types.h"
-
 #include <memory>
 #include <vector>
+#include <functional>
+#include <Eigen/Core>
+#include <Eigen/Geometry>
 
 class Contact;
 class CollisionDetect;
@@ -14,75 +15,113 @@ class RigidBody;
 typedef std::function<void(std::vector<RigidBody*>&)> PreStepFunc;
 typedef std::function<void()> ResetFunc;
 
+// Integration methods for advancing the system state
+enum class IntegrationMethod {
+    EXPLICIT_EULER,
+    SYMPLECTIC_EULER,
+    VERLET,
+    RK4,
+    IMPLICIT_EULER
+};
+
+// UI-compatible enum that maps to IntegrationMethod
+enum class IntegratorType {
+    EXPLICIT_EULER = 0,
+    SYMPLECTIC_EULER = 1,
+    VERLET = 2,
+    RK4 = 3,
+    IMPLICIT_EULER = 4
+};
+
+// Solver types for constraint solving
+enum class SolverType {
+    PGS,
+    CONJ_GRADIENT,
+    CONJ_RESIDUAL,
+    PGSSM
+};
+
 class RigidBodySystem
 {
 public:
-
+    // Constructor/destructor
     RigidBodySystem();
-
     virtual ~RigidBodySystem();
 
-    // Advance the simulation.
-    void step(float _dt);
+    // Advance the simulation by dt
+    void step(float dt);
 
-    // Remove all rigid bodies and cleanup the memory.
+    // Remove all bodies/joints and reset
     void clear();
 
-    // Add rigid body @a _b to the system. The rigid body is owned and managed by this RigidBodySystem.
-    void addBody(RigidBody* _b);
+    // Add a rigid body (system takes ownership)
+    void addBody(RigidBody* b);
 
-    // Add joint @a _j to the system. The joint is owned and managed by this RigidBodySystem.
-    void addJoint(Joint* _j);
+    // Add a joint (system takes ownership)
+    void addJoint(Joint* j);
 
-    // Accessors for the body array.
+    // Accessors
     const std::vector<RigidBody*>& getBodies() const { return m_bodies; }
     std::vector<RigidBody*>& getBodies() { return m_bodies; }
-
-    // Accessors for the contact array.
     const std::vector<Contact*>& getContacts() const;
     std::vector<Contact*>& getContacts();
+    const std::vector<Joint*>& getJoints() const { return m_joints; }
+    std::vector<Joint*>& getJoints() { return m_joints; }
 
-    // Accessors for the joint array.
-    const std::vector<Joint*>& getJoints() const;
-    std::vector<Joint*>& getJoints();
+    // Callbacks
+    void setPreStepFunc(PreStepFunc func) { m_preStepFunc = func; }
+    void setResetFunc(ResetFunc func) { m_resetFunc = func; }
 
-    // Callbacks.
-    void setPreStepFunc(PreStepFunc _func) { m_preStepFunc = _func; }
-    void setResetFunc(ResetFunc _func) { m_resetFunc = _func; }
+    // Collision toggle
+    void setEnableCollisionDetection(bool enable) { m_collisionsEnabled = enable; }
+    bool getEnableCollisionDetection() const { return m_collisionsEnabled; }
 
-    void setEnableCollisionDetection(bool _enableCollisions) { m_collisionsEnabled = _enableCollisions;  }
+    // Gravity
+    void setGravity(const Eigen::Vector3f& g) { m_gravity = g; }
+    const Eigen::Vector3f& getGravity() const { return m_gravity; }
 
-    int solverIter;
-    int solverId; // PGS = 0, Conj. Gradient = 1, Conj. Residual = 2
+    // Solver settings
+    void setSolverType(SolverType type);
+    SolverType getSolverType() const;
+    void setSolverIterations(int iters) { m_solverIter = iters; }
+    int getSolverIterations() const { return m_solverIter; }
+
+    // Original integration method interface
+    void setIntegrationMethod(IntegrationMethod method);
+    IntegrationMethod getIntegrationMethod() const;
+
+    // UI-compatible integration method interface
+    void setIntegratorType(IntegratorType type) {
+        // Map from UI enum to internal enum
+        setIntegrationMethod(static_cast<IntegrationMethod>(type));
+    }
+
+    IntegratorType getIntegratorType() const {
+        // Map from internal enum to UI enum
+        return static_cast<IntegratorType>(getIntegrationMethod());
+    }
 
 private:
+    // Internal pipelines
+    void computeInertias();
+    void calcConstraintForces(float dt);
 
+    // Integration routines
+    void integrateExplicitEuler(float dt);
+    void integrateSymplecticEuler(float dt);
+    void integrateVerlet(float dt);
+    void integrateRK4(float dt);
+    void integrateImplicitEuler(float dt);
+
+    // Members
     std::vector<RigidBody*> m_bodies;
     std::vector<Joint*> m_joints;
     std::unique_ptr<CollisionDetect> m_collisionDetect;
-
     bool m_collisionsEnabled;
-
-    // Compute the world-space inverse inertia matrices for all bodies.
-    //  This function also updates the rotation matrices using the quaternions.
-    void computeInertias();
-
-    // Compute the constraint forces.
-    void calcConstraintForces(float dt);
-
     PreStepFunc m_preStepFunc;
     ResetFunc m_resetFunc;
+    Eigen::Vector3f m_gravity;
+    SolverType m_solverType;
+    int m_solverIter;
+    IntegrationMethod m_integrationMethod;
 };
-
-
-template<typename ScalarType, int Options>
-Eigen::Quaternion<ScalarType, Options> operator*(ScalarType a, const Eigen::Quaternion<ScalarType, Options>& q)
-{
-    return Eigen::Quaternion<ScalarType, Options>(a*q.w(),a*q.x(),a*q.y(),a*q.z());
-}
-
-template<typename ScalarType, int Options>
-Eigen::Quaternion<ScalarType, Options> operator+(const Eigen::Quaternion<ScalarType, Options>& q1, const Eigen::Quaternion<ScalarType, Options>& q2)
-{
-    return Eigen::Quaternion<ScalarType, Options>(q1.w()+q2.w(),q1.x()+q2.x(),q1.y()+q2.y(),q1.z()+q2.z());
-}

@@ -42,6 +42,8 @@ public:
 
     virtual void computeJacobian() = 0;
 
+    virtual std::string getTypeName() const { return "Joint"; }
+
 protected:
 
     // Default constructor (hidden).
