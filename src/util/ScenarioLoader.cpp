@@ -16,6 +16,7 @@
 #include <algorithm>
 using json = nlohmann::json;
 
+
 std::string ScenarioLoader::getScenariosPath() {
     // Try common paths
     std::vector<std::string> paths = {
