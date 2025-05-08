@@ -159,6 +159,20 @@ bool ScenarioLoader::parseScenario(RigidBodySystem &system, const std::string &j
                     bodyJson["angular_velocity"]["z"].get<float>());
             }
 
+            // Set material properties if available
+            if (bodyJson.count("material") > 0) {
+                const auto &material = bodyJson["material"];
+                if (material.count("restitution") > 0) {
+                    body->restitution = material["restitution"].get<float>();
+                }
+                if (material.count("friction") > 0) {
+                    body->friction = material["friction"].get<float>();
+                }
+                if (material.count("density") > 0) {
+                    body->density = material["density"].get<float>();
+                }
+            }
+
             // Visual properties
             if (bodyJson.count("visual") > 0 && body->mesh) {
                 const auto &visual = bodyJson["visual"];
@@ -279,9 +293,13 @@ bool ScenarioLoader::parseScenario(RigidBodySystem &system, const std::string &j
         // Physics settings
         if (scenario.count("physics") > 0) {
             const auto &physics = scenario["physics"];
+
+            // Set solver iterations
             if (physics.count("solver_iterations") > 0) {
                 system.setSolverIterations(physics.at("solver_iterations").get<int>());
             }
+
+            // Set gravity
             if (physics.count("gravity") > 0) {
                 Eigen::Vector3f grav(
                     physics.at("gravity")["x"].get<float>(),
@@ -289,6 +307,91 @@ bool ScenarioLoader::parseScenario(RigidBodySystem &system, const std::string &j
                     physics.at("gravity")["z"].get<float>());
                 system.setGravity(grav);
                 std::cout << "Set gravity to: [" << grav.x() << ", " << grav.y() << ", " << grav.z() << "]" << std::endl;
+            }
+
+            // Enhanced integration settings
+            if (physics.count("integration") > 0) {
+                const auto &integration = physics["integration"];
+
+                // Set integration method
+                if (integration.count("method") > 0) {
+                    std::string methodStr = integration.at("method").get<std::string>();
+                    IntegrationMethod method = IntegrationMethod::EXPLICIT_EULER; // Default
+
+                    if (methodStr == "explicit_euler") {
+                        method = IntegrationMethod::EXPLICIT_EULER;
+                    } else if (methodStr == "symplectic_euler") {
+                        method = IntegrationMethod::SYMPLECTIC_EULER;
+                    } else if (methodStr == "verlet") {
+                        method = IntegrationMethod::VERLET;
+                    } else if (methodStr == "rk4") {
+                        method = IntegrationMethod::RK4;
+                    } else if (methodStr == "implicit_euler") {
+                        method = IntegrationMethod::IMPLICIT_EULER;
+                    } else {
+                        std::cerr << "Unknown integration method: " << methodStr << ", defaulting to EXPLICIT_EULER" << std::endl;
+                    }
+
+                    system.setIntegrationMethod(method);
+                    std::cout << "Set integration method to: " << methodStr << std::endl;
+                }
+
+                // Set solver type
+                if (integration.count("solver_type") > 0) {
+                    std::string solverStr = integration.at("solver_type").get<std::string>();
+                    SolverType solver = SolverType::PGS; // Default
+
+                    if (solverStr == "pgs") {
+                        solver = SolverType::PGS;
+                    } else if (solverStr == "pgssm") {
+                        solver = SolverType::PGSSM;
+                    } else if (solverStr == "conj_gradient") {
+                        solver = SolverType::CONJ_GRADIENT;
+                    } else if (solverStr == "conj_residual") {
+                        solver = SolverType::CONJ_RESIDUAL;
+                    } else {
+                        std::cerr << "Unknown solver type: " << solverStr << ", defaulting to PGS" << std::endl;
+                    }
+
+                    system.setSolverType(solver);
+                    std::cout << "Set solver type to: " << solverStr << std::endl;
+                }
+
+                // Graph coloring option
+                if (integration.count("use_graph_coloring") > 0) {
+                    bool useGraphColoring = integration.at("use_graph_coloring").get<bool>();
+                    system.setUseGraphColoring(useGraphColoring);
+                    std::cout << "Set graph coloring to: " << (useGraphColoring ? "enabled" : "disabled") << std::endl;
+                }
+
+                // Implicit Euler specific parameters
+                if (integration.count("implicit_euler") > 0) {
+                    const auto &implicitParams = integration["implicit_euler"];
+
+                    if (implicitParams.count("damping") > 0) {
+                        float damping = implicitParams.at("damping").get<float>();
+                        system.setImplicitDamping(damping);
+                        std::cout << "Set implicit Euler damping to: " << damping << std::endl;
+                    }
+
+                    if (implicitParams.count("gyroscopic_damping") > 0) {
+                        float gyroDamping = implicitParams.at("gyroscopic_damping").get<float>();
+                        system.setGyroscopicDamping(gyroDamping);
+                        std::cout << "Set implicit Euler gyroscopic damping to: " << gyroDamping << std::endl;
+                    }
+
+                    if (implicitParams.count("max_velocity") > 0) {
+                        float maxVel = implicitParams.at("max_velocity").get<float>();
+                        system.setMaxLinearVelocity(maxVel);
+                        std::cout << "Set implicit Euler max linear velocity to: " << maxVel << std::endl;
+                    }
+
+                    if (implicitParams.count("max_angular_velocity") > 0) {
+                        float maxAngVel = implicitParams.at("max_angular_velocity").get<float>();
+                        system.setMaxAngularVelocity(maxAngVel);
+                        std::cout << "Set implicit Euler max angular velocity to: " << maxAngVel << std::endl;
+                    }
+                }
             }
         }
 

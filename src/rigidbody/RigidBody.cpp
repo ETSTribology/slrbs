@@ -106,10 +106,10 @@ void RigidBody::getVelocityAtPos(const Eigen::Vector3f& pos, Eigen::Vector3f& ve
     vel = xdot + r.cross(omega);
 }
 
-void RigidBody::applyVisualProperties() 
+void RigidBody::applyVisualProperties()
 {
     if (!mesh) return;
-    
+
     // Apply basic properties from the map
     if (visualProperties.count("colorR"))
         mesh->setSurfaceColor({
@@ -117,13 +117,13 @@ void RigidBody::applyVisualProperties()
             visualProperties["colorG"],
             visualProperties["colorB"]
         });
-    
+
     if (visualProperties.count("transparency"))
         mesh->setTransparency(visualProperties["transparency"]);
-    
+
     if (visualProperties.count("smoothShade"))
         mesh->setSmoothShade(visualProperties["smoothShade"] > 0.5f);
-    
+
     if (visualProperties.count("edgeWidth"))
         mesh->setEdgeWidth(visualProperties["edgeWidth"]);
 }

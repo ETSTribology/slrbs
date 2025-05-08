@@ -76,6 +76,10 @@ public:
     void setEnableCollisionDetection(bool enable) { m_collisionsEnabled = enable; }
     bool getEnableCollisionDetection() const { return m_collisionsEnabled; }
 
+    // Graph coloring toggle
+    void setUseGraphColoring(bool enable) { m_useGraphColoring = enable; }
+    bool getUseGraphColoring() const { return m_useGraphColoring; }
+
     // Gravity
     void setGravity(const Eigen::Vector3f& g) { m_gravity = g; }
     const Eigen::Vector3f& getGravity() const { return m_gravity; }
@@ -86,20 +90,32 @@ public:
     void setSolverIterations(int iters) { m_solverIter = iters; }
     int getSolverIterations() const { return m_solverIter; }
 
-    // Original integration method interface
+    // Integration method interface
     void setIntegrationMethod(IntegrationMethod method);
     IntegrationMethod getIntegrationMethod() const;
-
-    // UI-compatible integration method interface
     void setIntegratorType(IntegratorType type) {
-        // Map from UI enum to internal enum
         setIntegrationMethod(static_cast<IntegrationMethod>(type));
     }
-
     IntegratorType getIntegratorType() const {
-        // Map from internal enum to UI enum
         return static_cast<IntegratorType>(getIntegrationMethod());
     }
+
+    // Implicit-Euler parameter controls
+    void setImplicitDamping(float d)       { m_implicitDamping = d; }
+    float getImplicitDamping() const       { return m_implicitDamping; }
+
+    void setGyroscopicDamping(float d)     { m_gyroDamping = d; }
+    float getGyroscopicDamping() const     { return m_gyroDamping; }
+
+    void setMaxLinearVelocity(float v)     { m_maxLinearVelocity = v; }
+    float getMaxLinearVelocity() const     { return m_maxLinearVelocity; }
+
+    void setMaxAngularVelocity(float v)    { m_maxAngularVelocity = v; }
+    float getMaxAngularVelocity() const    { return m_maxAngularVelocity; }
+
+    // Optionally disable velocity limiting entirely
+    void setVelocityLimitingEnabled(bool e) { m_limitVelocities = e; }
+    bool getVelocityLimitingEnabled() const { return m_limitVelocities; }
 
 private:
     // Internal pipelines
@@ -117,11 +133,19 @@ private:
     std::vector<RigidBody*> m_bodies;
     std::vector<Joint*> m_joints;
     std::unique_ptr<CollisionDetect> m_collisionDetect;
-    bool m_collisionsEnabled;
+    bool m_collisionsEnabled = true;
+    bool m_useGraphColoring = true;
+    bool m_limitVelocities = true;
     PreStepFunc m_preStepFunc;
     ResetFunc m_resetFunc;
-    Eigen::Vector3f m_gravity;
-    SolverType m_solverType;
-    int m_solverIter;
-    IntegrationMethod m_integrationMethod;
+    Eigen::Vector3f m_gravity = {0.0f, -9.81f, 0.0f};
+    SolverType m_solverType = SolverType::PGS;
+    int m_solverIter = 10;
+    IntegrationMethod m_integrationMethod = IntegrationMethod::EXPLICIT_EULER;
+
+    // Implicit-Euler parameters
+    float m_implicitDamping    = 0.98f;
+    float m_gyroDamping        = 0.20f;
+    float m_maxLinearVelocity  = 50.0f;
+    float m_maxAngularVelocity = 20.0f;
 };

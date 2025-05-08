@@ -8,6 +8,7 @@
 #include "util/MeshAssets.h"
 
 #include <cstdlib>
+#include <collision/Geometry.h>
 #include <Eigen/Dense>
 
 class Scenarios

@@ -290,40 +290,73 @@ void SimViewer::drawGUI()
     }
     ImGui::End();
 
-    // Solver Settings
     ImGui::Begin("Solver Settings", nullptr, ImGuiWindowFlags_AlwaysAutoResize);
+    ImGui::PushItemWidth(150);
     {
-        ImGui::PushItemWidth(150);
+        // Time step & substeps
         ImGui::SliderFloat("Time step", &m_dt, 0.001f, 0.1f, "%.3f s");
         ImGui::SliderInt("Sub-steps", &m_subSteps, 1, 20);
+
+        // Solver iterations & friction
         int iters = m_rigidBodySystem->getSolverIterations();
         if (ImGui::SliderInt("Solver iterations", &iters, 1, 100))
             m_rigidBodySystem->setSolverIterations(iters);
         ImGui::SliderFloat("Friction coeff.", &Contact::mu, 0.0f, 2.0f, "%.2f");
 
+        // Integrator selection with tooltip
         static const char* integrators[] = {
             "Explicit Euler", "Symplectic Euler", "Verlet", "RK4", "Implicit Euler"
         };
-        static int currentIntegrator = 1;
-        if (ImGui::Combo("Integrator", &currentIntegrator, integrators, IM_ARRAYSIZE(integrators)))
-        {
-            m_rigidBodySystem->setIntegratorType(
-                static_cast<IntegratorType>(currentIntegrator)
-            );
+        int currentIntegrator = static_cast<int>(m_rigidBodySystem->getIntegratorType());
+        if (ImGui::Combo("Integrator", &currentIntegrator, integrators, IM_ARRAYSIZE(integrators))) {
+            m_rigidBodySystem->setIntegratorType(static_cast<IntegratorType>(currentIntegrator));
+        }
+        if (ImGui::IsItemHovered())
+            ImGui::SetTooltip("Choose your integration method. "
+                              "Implicit Euler offers extra stability options.");
+
+        // If using Implicit Euler, show extra parameters
+        if (m_rigidBodySystem->getIntegrationMethod() == IntegrationMethod::IMPLICIT_EULER) {
+            ImGui::Separator();
+            ImGui::Text("Implicit-Euler Settings");
+
+            float d = m_rigidBodySystem->getImplicitDamping();
+            if (ImGui::SliderFloat("Damping", &d, 0.0f, 1.0f, "%.2f"))
+                m_rigidBodySystem->setImplicitDamping(d);
+            if (ImGui::IsItemHovered()) ImGui::SetTooltip("Global velocity damping factor.");
+
+            float gd = m_rigidBodySystem->getGyroscopicDamping();
+            if (ImGui::SliderFloat("Gyro Damping", &gd, 0.0f, 1.0f, "%.2f"))
+                m_rigidBodySystem->setGyroscopicDamping(gd);
+            if (ImGui::IsItemHovered()) ImGui::SetTooltip("Damping for gyroscopic forces.");
+
+            bool lim = m_rigidBodySystem->getVelocityLimitingEnabled();
+            if (ImGui::Checkbox("Limit Velocities", &lim))
+                m_rigidBodySystem->setVelocityLimitingEnabled(lim);
+            if (ImGui::IsItemHovered()) ImGui::SetTooltip("Toggle to clamp extreme velocities.");
+
+            float mv = m_rigidBodySystem->getMaxLinearVelocity();
+            if (ImGui::DragFloat("Max Lin Vel", &mv, 1.0f, 0.0f, 1000.0f))
+                m_rigidBodySystem->setMaxLinearVelocity(mv);
+            if (ImGui::IsItemHovered()) ImGui::SetTooltip("Max linear speed clamp.");
+
+            float mav = m_rigidBodySystem->getMaxAngularVelocity();
+            if (ImGui::DragFloat("Max Ang Vel", &mav, 1.0f, 0.0f, 1000.0f))
+                m_rigidBodySystem->setMaxAngularVelocity(mav);
+            if (ImGui::IsItemHovered()) ImGui::SetTooltip("Max angular speed clamp.");
         }
 
         ImGui::Separator();
         ImGui::Text("Solver Type:");
         SolverType st = m_rigidBodySystem->getSolverType();
-        if (ImGui::RadioButton("PGS",     st==SolverType::PGS))         m_rigidBodySystem->setSolverType(SolverType::PGS);
+        if (ImGui::RadioButton("PGS", st==SolverType::PGS))           m_rigidBodySystem->setSolverType(SolverType::PGS);
         ImGui::SameLine();
-        if (ImGui::RadioButton("PGSSM",   st==SolverType::PGSSM))       m_rigidBodySystem->setSolverType(SolverType::PGSSM);
-        if (ImGui::RadioButton("Conj Grad",   st==SolverType::CONJ_GRADIENT)) m_rigidBodySystem->setSolverType(SolverType::CONJ_GRADIENT);
+        if (ImGui::RadioButton("PGSSM", st==SolverType::PGSSM))       m_rigidBodySystem->setSolverType(SolverType::PGSSM);
+        if (ImGui::RadioButton("Conj Grad", st==SolverType::CONJ_GRADIENT)) m_rigidBodySystem->setSolverType(SolverType::CONJ_GRADIENT);
         ImGui::SameLine();
         if (ImGui::RadioButton("Conj Residual", st==SolverType::CONJ_RESIDUAL)) m_rigidBodySystem->setSolverType(SolverType::CONJ_RESIDUAL);
-
-        ImGui::PopItemWidth();
     }
+    ImGui::PopItemWidth();
     ImGui::End();
 
     // Scenarios
@@ -506,7 +539,7 @@ void SimViewer::drawGUI()
             ImGui::Separator();
             ImGui::Text("Camera Controls:");
             if (ImGui::Button("Top View"))
-                polyscope::view::lookAt({0,10,0},{0,0,0},false);
+                polyscope::view::lookAt({0,10,0},{0,0,0},{0,0,1},false);
             ImGui::SameLine();
             if (ImGui::Button("Side View"))
                 polyscope::view::lookAt({10,0,0},{0,0,0},false);

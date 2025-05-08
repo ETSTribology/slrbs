@@ -1,48 +1,53 @@
 #pragma once
 
 #include "joint/Joint.h"
-
 #include <Eigen/Dense>
 
+// Forward declarations
 class RigidBody;
 
-// Contact constraint with box friction.
-// 
-// This class stores the contact normal @a n and contact point @a p,
-// as well as the Jacobians @a J0 and @a J1 for each body,
-// which are computed by computeJacobian().
-// 
-// Note: contacts are considered a type of joint, but are a special case.
-//
 class Contact : public Joint
 {
-public: 
-    static float mu;            // Coefficient of friction (global)
-
 public:
-
-    // Constructor with all parameters.
-    Contact(RigidBody* _body0, RigidBody* _body1, const Eigen::Vector3f& _p, const Eigen::Vector3f& _n, float _phi);
-
+    Contact();
+    Contact(RigidBody* body0, RigidBody* body1, const Eigen::Vector3f& p, const Eigen::Vector3f& n, float pene);
     virtual ~Contact();
 
+    virtual void computeJacobian() override;
     virtual eConstraintType getType() const override { return kContact; }
 
-    Eigen::Vector3f p;          // The contact point.
-    Eigen::Vector3f n;          // The contact normal.
-    Eigen::Vector3f t, b;       // Tangent directions.
-    float pene;                 // Penetration
+    // Warmstart the contact with previous solution
+    void warmStart();
 
-    virtual void computeJacobian();
+    // Reset contact accumulators
+    void reset();
 
-    // Computes a contact frame using the contact normal @a n
-    // and the provided direction @a dir, which is aligned with the first tangent direction.
-    // The resulting frame is stored in the basis vectors @a n, @a t1, and @a t2.
-    //
     void computeContactFrame();
 
-protected:
+    // Contact parameters
+    Eigen::Vector3f p;     // Contact point
+    Eigen::Vector3f n;     // Contact normal
+    Eigen::Vector3f t;     // First tangent direction
+    Eigen::Vector3f b;     // Second tangent direction (bitangent)
+    float pene;            // Penetration depth
 
-    // Default constructor (hidden)
-    explicit Contact();
+    // Relative velocity at contact point
+    Eigen::Vector3f relVel;
+
+    // Contact properties
+    float restitution;     // Coefficient of restitution (bounciness)
+    float bias;            // Baumgarte stabilization term
+    bool persistent;       // Whether this contact persisted from last frame
+
+    // Previous frame lambda for warmstarting
+    Eigen::Vector3f prevLambda;
+
+    // Friction coefficient
+    static float mu;
+    // Restitution threshold - minimum normal velocity for bounce
+    static float restitutionThreshold;
+    // Baumgarte stabilization factor
+    static float baumgarte;
+    // Slop factor for penetration depth
+    static float slop;
 };

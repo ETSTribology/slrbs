@@ -3,14 +3,16 @@
 
 float Contact::mu = 0.8f;
 
-Contact::Contact() : Joint(), p(), n(), t(), b()
+Contact::Contact() : Joint(), p(), n(), t(), b(), pene(0.0f)
 {
-
+    dim = 3;
+    lambda.setZero(3);
+    phi.setZero(3);
 }
 
-Contact::Contact(RigidBody* _body0, RigidBody* _body1, const Eigen::Vector3f& _p, const Eigen::Vector3f& _n, float _pene) :
-    Joint(_body0, _body1),
-    p(_p), n(_n), t(), b(), pene(_pene)
+Contact::Contact(RigidBody* body0, RigidBody* body1, const Eigen::Vector3f& contactPoint, const Eigen::Vector3f& normal, float penetration) :
+    Joint(body0, body1),
+    p(contactPoint), n(normal), t(), b(), pene(penetration)
 {
     dim = 3;
     J0.setZero(3, 6);
@@ -19,7 +21,7 @@ Contact::Contact(RigidBody* _body0, RigidBody* _body1, const Eigen::Vector3f& _p
     J1Minv.setZero(3, 6);
     lambda.setZero(3);
     phi.setZero(3);
-    phi(0) = _pene;
+    phi(0) = penetration;
 
     body0->contacts.push_back(this);
     body1->contacts.push_back(this);
@@ -27,27 +29,24 @@ Contact::Contact(RigidBody* _body0, RigidBody* _body1, const Eigen::Vector3f& _p
 
 Contact::~Contact()
 {
-
+    // Empty destructor
 }
 
 void Contact::computeContactFrame()
 {
     // Compute the contact frame, which consists of an orthonormal
-    //  bases formed the vector n, t, and b
-    //
+    // bases formed by the vectors n, t, and b
 
-    // TODO Compute first tangent direction t
-    //
+    // Compute first tangent direction t
     t = n.cross(Eigen::Vector3f(1, 0, 0));
-    if ( t.norm() < 1e-5f )
+    if (t.norm() < 1e-5f)
     {
-        // Fail-safe: use axis-aligned direction (0,0,-1) 
+        // Fail-safe: use axis-aligned direction
         t = n.cross(Eigen::Vector3f(0, 1, 0));
     }
     t.normalize();
 
-    // TODO Compute second tangent direction b.
-    //
+    // Compute second tangent direction b
     b = n.cross(t);
     b.normalize();
 }
@@ -55,7 +54,6 @@ void Contact::computeContactFrame()
 void Contact::computeJacobian()
 {
     // Compute the Jacobians J0 and J1
-    //
     const Eigen::Vector3f rr0 = p - body0->x;
     const Eigen::Vector3f rr1 = p - body1->x;
 
@@ -67,26 +65,27 @@ void Contact::computeJacobian()
     phi.setZero(3);
     phi(0) = pene;
 
-    // TODO: assemble the contact Jacobian
-    // 
-    // normal row (non-interpenetration)
+    // Assemble the contact Jacobian
+
+    // Normal row (non-interpenetration)
     J0.block(0, 0, 1, 3) = n.transpose();
     J0.block(0, 3, 1, 3) = rr0.cross(n).transpose();
     J1.block(0, 0, 1, 3) = -n.transpose();
     J1.block(0, 3, 1, 3) = -rr1.cross(n).transpose();
-    // tangent 1 (friction)
+
+    // Tangent 1 (friction)
     J0.block(1, 0, 1, 3) = t.transpose();
     J0.block(1, 3, 1, 3) = rr0.cross(t).transpose();
     J1.block(1, 0, 1, 3) = -t.transpose();
     J1.block(1, 3, 1, 3) = -rr1.cross(t).transpose();
-    // tangent 2 (friction)
+
+    // Tangent 2 (friction)
     J0.block(2, 0, 1, 3) = b.transpose();
     J0.block(2, 3, 1, 3) = rr0.cross(b).transpose();
     J1.block(2, 0, 1, 3) = -b.transpose();
     J1.block(2, 3, 1, 3) = -rr1.cross(b).transpose();
 
-    // Finally, compute the blocks J M^-1 for each body.
-    //
+    // Compute the blocks J M^-1 for each body
     J0Minv.block(0,0,3,3) = (1.0f/body0->mass) * J0.block(0, 0, 3, 3);
     J0Minv.block(0,3,3,3) = J0.block(0, 3, 3, 3) * body0->Iinv;
     J1Minv.block(0,0,3,3) = (1.0f/body1->mass) * J1.block(0, 0, 3, 3);

@@ -65,4 +65,8 @@ public:
 
     polyscope::SurfaceMesh* mesh;       // Used for rendering
     std::map<std::string, float> visualProperties; // Store visual properties
+
+    // Graph coloring properties
+    int color = -1;                     // Color assigned during graph coloring (-1 = uncolored)
+    int numColors = 0;                  // Total number of colors used in the system
 };
