@@ -4,7 +4,6 @@ project(slrbs
         DESCRIPTION "SLRBS"
         HOMEPAGE_URL "https://github.com/ETSim/slrbs"
         LANGUAGES CXX)
-find_package(COMPONENTS Core Gui OpenGL REQUIRED)
 
 # ─────────────────────────────────────────────────────────────────────────────
 #  Global options
@@ -13,6 +12,10 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+
+if(POLICY CMP0169)
+    cmake_policy(SET CMP0169 NEW)  # Use the new behavior for FetchContent
+endif()
 
 # Build options (defaults to Release build)
 if(NOT CMAKE_BUILD_TYPE)
@@ -110,16 +113,8 @@ FetchContent_Declare(
 # Actually download and configure them
 FetchContent_MakeAvailable(polyscope eigen)
 
-FetchContent_Declare(
-        nlohmann_json
-        GIT_REPOSITORY https://github.com/nlohmann/json.git
-        GIT_TAG        v3.11.2
-        GIT_SHALLOW    TRUE
-)
-FetchContent_GetProperties(nlohmann_json)
-if(NOT nlohmann_json_POPULATED)
-    FetchContent_Populate(nlohmann_json)
-endif()
+# We don't need to fetch nlohmann_json separately as it's already included in Polyscope
+# Polyscope includes it in /c/Users/antoi/slrbs/cmake-build-debug/_deps/polyscope-src/deps/json
 
 file(GLOB_RECURSE SRC CONFIGURE_DEPENDS
         src/*.cpp
@@ -133,9 +128,10 @@ add_executable(slrbs ${SRC})
 #  Target configuration
 # ─────────────────────────────────────────────────────────────────────────────
 target_include_directories(slrbs PRIVATE
-        ${nlohmann_json_SOURCE_DIR}/include
         ${CMAKE_CURRENT_SOURCE_DIR}/include
-        ${eigen_SOURCE_DIR})
+        ${eigen_SOURCE_DIR}
+        # Use nlohmann_json from Polyscope's dependencies
+        ${polyscope_SOURCE_DIR}/deps/json/include)
 
 # Add OpenMP compile options if found
 if(OpenMP_CXX_FOUND)

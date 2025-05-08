@@ -1,6 +1,7 @@
 # cmake/Options.cmake – User‑configurable options for SLRBS
 
 option(BUILD_TESTING        "Enable testing"                          ON)
+option(USE_QT "Enable Qt support" ON)
 option(USE_SYSTEM_QT        "Use system Qt5 installation"            ON)
 option(USE_OPENCV           "Enable OpenCV support"                  OFF)
 option(USE_TORCH            "Enable LibTorch support"                OFF)
