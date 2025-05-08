@@ -39,9 +39,8 @@ cd build
 
 ## Dependencies
 
-* **Eigen** (included in `3rdParty/Eigen3`)
-* **Polyscope** (included in `3rdParty/polyscope`)
-* **Qt5** (Core, Gui, OpenGL) for the viewer GUI
+* **Eigen**
+* **Polyscope**
 * CMake 3.15 or higher
 
 ## Building

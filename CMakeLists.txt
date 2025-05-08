@@ -4,7 +4,7 @@ project(slrbs
         DESCRIPTION "SLRBS"
         HOMEPAGE_URL "https://github.com/ETSim/slrbs"
         LANGUAGES CXX)
-find_package(Qt5 COMPONENTS Core Gui OpenGL REQUIRED)
+find_package(COMPONENTS Core Gui OpenGL REQUIRED)
 
 # ─────────────────────────────────────────────────────────────────────────────
 #  Global options
@@ -175,9 +175,6 @@ endif()
 target_link_libraries(slrbs PRIVATE
         ${OPENGL_LIB}
         polyscope
-        Qt5::Core
-        Qt5::Gui
-        Qt5::OpenGL
         ${OPENMP_LIBS})
 
 # Make sure we're building a console app on Windows
