@@ -17,7 +17,7 @@
             },
             "visual": {
                 "color": { "r": 0.8, "g": 0.8, "b": 0.8 },
-                "transparency": 0.0,
+                "transparency": 1.0,
                 "smooth_shade": true,
                 "edge_width": 1.0
             }
@@ -37,7 +37,7 @@
             },
             "visual": {
                 "color": { "r": 0.5, "g": 0.5, "b": 0.5 },
-                "transparency": 0.0,
+                "transparency": 1.0,
                 "smooth_shade": true,
                 "edge_width": 1.0
             }

@@ -157,7 +157,6 @@ void SolverProximal::setLogEnabled(LogType t, bool en) {
     m_logEnabled[t] = en;
 }
 
-// --- MISSING: initializeDataLogger ---
 void SolverProximal::initializeDataLogger(const std::string& name) {
     m_dataLogger = std::make_unique<slrbs::SimDataLogger>();
     m_dataLogger->initialize(m_exportBasePath);
