@@ -24,6 +24,106 @@ CollisionDetect::CollisionDetect(RigidBodySystem* rigidBodySystem) : m_rigidBody
 
 }
 
+int CollisionDetect::findFaceForContact(RigidBody* body, const Eigen::Vector3f& worldPoint) {
+    if (!body || !body->geometry) return -1;
+
+    // A simple deterministic method to generate face indices without
+    // needing direct access to mesh data
+
+    // Convert world point to local coordinates
+    Eigen::Vector3f localPoint = body->q.inverse() * (worldPoint - body->x);
+
+    // Generate a face index based on position
+    int faceIndex = 0;
+
+    switch (body->geometry->getType()) {
+        case kBox: {
+            // For a box, determine which face was hit based on position
+            Box* box = dynamic_cast<Box*>(body->geometry.get());
+            Eigen::Vector3f halfDim = box->dim * 0.5f;
+            Eigen::Vector3f normalizedPos = localPoint.cwiseQuotient(halfDim);
+
+            // Which axis has the largest magnitude?
+            int axisIndex = 0;
+            float maxVal = std::abs(normalizedPos[0]);
+            for (int i = 1; i < 3; i++) {
+                if (std::abs(normalizedPos[i]) > maxVal) {
+                    maxVal = std::abs(normalizedPos[i]);
+                    axisIndex = i;
+                }
+            }
+
+            // Face index: 0-1 for X, 2-3 for Y, 4-5 for Z
+            // Even indices for negative direction, odd for positive
+            faceIndex = axisIndex * 2 + (normalizedPos[axisIndex] > 0 ? 1 : 0);
+
+            // Map to face triangles (each face has 2 triangles)
+            faceIndex = faceIndex * 2;
+
+            // Determine which of the two triangles on the face
+            float u, v;
+            switch (axisIndex) {
+                case 0: // X axis - use Y,Z for subdivision
+                    u = (normalizedPos.y() + 1.0f) * 0.5f;
+                    v = (normalizedPos.z() + 1.0f) * 0.5f;
+                    break;
+                case 1: // Y axis - use X,Z for subdivision
+                    u = (normalizedPos.x() + 1.0f) * 0.5f;
+                    v = (normalizedPos.z() + 1.0f) * 0.5f;
+                    break;
+                case 2: // Z axis - use X,Y for subdivision
+                    u = (normalizedPos.x() + 1.0f) * 0.5f;
+                    v = (normalizedPos.y() + 1.0f) * 0.5f;
+                    break;
+            }
+
+            // Determine which triangle of the face was hit
+            if (u + v > 1.0f) {
+                faceIndex += 1; // Second triangle
+            }
+
+            break;
+        }
+        case kSphere: {
+            // For a sphere, create a mapping based on spherical coordinates
+            Sphere* sphere = dynamic_cast<Sphere*>(body->geometry.get());
+
+            // Normalize to unit sphere
+            Eigen::Vector3f dir = localPoint.normalized();
+
+            // Convert to spherical coordinates
+            float theta = std::atan2(dir.y(), dir.x());
+            float phi = std::acos(dir.z());
+
+            // Map to a face index (assume 80 faces for a sphere)
+            // Divide sphere into 8 sectors in theta and 5 in phi = 40 sectors
+            // Each sector has 2 triangles
+            int thetaIdx = static_cast<int>((theta + M_PI) / (2 * M_PI) * 8) % 8;
+            int phiIdx = static_cast<int>(phi / M_PI * 5) % 5;
+
+            faceIndex = (phiIdx * 8 + thetaIdx) * 2;
+
+            // Determine which of the two triangles in the sector
+            float thetaNorm = (theta + M_PI) / (2 * M_PI) * 8 - thetaIdx;
+            float phiNorm = phi / M_PI * 5 - phiIdx;
+
+            if (thetaNorm + phiNorm > 1.0f) {
+                faceIndex += 1; // Second triangle
+            }
+
+            break;
+        }
+        default: {
+            // For other shapes, just use a simple hash of the position
+            float hash = localPoint.x() * 73.0f + localPoint.y() * 179.0f + localPoint.z() * 283.0f;
+            faceIndex = static_cast<int>(std::abs(hash)) % 20; // Assume 20 faces
+            break;
+        }
+    }
+
+    return faceIndex;
+}
+
 void CollisionDetect::detectCollisions()
 {
     // Next, loop over all pairs of bodies and test for contacts.
@@ -71,6 +171,11 @@ void CollisionDetect::detectCollisions()
             {
                 collisionDetectCylinderPlane(body1, body0);
             }
+            else if (body1->geometry->getType() == kBox &&
+                body0->geometry->getType() == kBox)
+            {
+                collisionDetectBoxBox(body0, body1);
+            }
         }
     }
 }
@@ -99,15 +204,12 @@ void CollisionDetect::clear()
     }
 }
 
+
 void CollisionDetect::collisionDetectSphereSphere(RigidBody* body0, RigidBody* body1)
 {
     Sphere* sphere0 = dynamic_cast<Sphere*>(body0->geometry.get());
     Sphere* sphere1 = dynamic_cast<Sphere*>(body1->geometry.get());
 
-    // Implement sphere-sphere collision detection.
-    // The function should check if a collision exists, and if it does
-    // compute the contact normal, contact point, and penetration depth.
-    //
     Eigen::Vector3f vec = body0->x - body1->x;
 
     const float rsum = (sphere0->radius + sphere1->radius);
@@ -118,7 +220,11 @@ void CollisionDetect::collisionDetectSphereSphere(RigidBody* body0, RigidBody* b
         const Eigen::Vector3f p = 0.5f * ((body0->x - sphere0->radius * n) + (body1->x + sphere1->radius * n));
         const float phi = std::min(0.0f, dist - rsum);
 
-        m_contacts.push_back(new Contact(body0, body1, p, n, phi));
+        // Create contact first
+        Contact* contact = new Contact(body0, body1, p, n, phi);
+        // Set face indices separately (both -1 for spheres)
+        contact->setFaceIndices(-1, -1);
+        m_contacts.push_back(contact);
     }
 }
 
@@ -145,7 +251,14 @@ void CollisionDetect::collisionDetectSphereBox(RigidBody* body0, RigidBody* body
         const Eigen::Vector3f p = body1->q * q + body1->x;
         const float phi = std::min(0.0f, dist - sphere->radius);
 
-        m_contacts.push_back(new Contact(body0, body1, p, n, phi));
+        // Find the face index for the box
+        int faceIndex = findFaceForContact(body1, p);
+
+        // Create contact
+        Contact* contact = new Contact(body0, body1, p, n, phi);
+        // Set face indices (-1 for sphere, faceIndex for box)
+        contact->setFaceIndices(-1, faceIndex);
+        m_contacts.push_back(contact);
     }
 }
 
@@ -267,8 +380,10 @@ void CollisionDetect::collisionDetectCylinderPlane(RigidBody* body0, RigidBody* 
             const Eigen::Vector3f n = planen;
             const Eigen::Vector3f p = a;
             const float phi = std::min(0.0f, dist);
-            m_contacts.push_back(new Contact(body0, body1, p, n, phi));
+
+            Contact* contact = new Contact(body0, body1, p, n, phi);
+            contact->setFaceIndices(-1, 0);
+            m_contacts.push_back(contact);
         }
     }
-
 }

@@ -1,6 +1,6 @@
 {
     "name": "BlenderScene",
-    "description": "Scene exported from Blender",
+    "description": "Scene exported from Blender (now with a cube)",
     "version": 1.0,
     "bodies": [
         {
@@ -12,12 +12,12 @@
             "linear_velocity": { "x": 0.0, "y": 0.0, "z": 0.0 },
             "angular_velocity": { "x": 0.0, "y": 0.0, "z": 0.0 },
             "geometry": {
-                "type": "sphere",
-                "radius": 1.0
+                "type": "box",
+                "dimensions": { "x": 2.0, "y": 2.0, "z": 2.0 }
             },
             "visual": {
                 "color": { "r": 0.8, "g": 0.8, "b": 0.8 },
-                "transparency": 1.0,
+                "transparency": 0.0,
                 "smooth_shade": true,
                 "edge_width": 1.0
             }
@@ -37,7 +37,7 @@
             },
             "visual": {
                 "color": { "r": 0.5, "g": 0.5, "b": 0.5 },
-                "transparency": 1.0,
+                "transparency": 0.0,
                 "smooth_shade": true,
                 "edge_width": 1.0
             }

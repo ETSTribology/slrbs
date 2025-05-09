@@ -120,20 +120,6 @@ RigidBodySystem::~RigidBodySystem() {
     }
 }
 
-void RigidBodySystem::setSolverType(SolverType type) {
-    m_solverType = type;
-}
-SolverType RigidBodySystem::getSolverType() const {
-    return m_solverType;
-}
-
-void RigidBodySystem::setIntegrationMethod(IntegrationMethod method) {
-    m_integrationMethod = method;
-}
-IntegrationMethod RigidBodySystem::getIntegrationMethod() const {
-    return m_integrationMethod;
-}
-
 void RigidBodySystem::addBody(RigidBody* b) {
     m_bodies.push_back(b);
 }
@@ -155,15 +141,50 @@ void RigidBodySystem::step(float dt)
         b->fc.setZero();
         b->tauc.setZero();
         b->contacts.clear();
+        b->gsDamp.setZero();
     }
 
     computeInertias();
-    if(m_preStepFunc) m_preStepFunc(m_bodies);
+    if (m_preStepFunc) m_preStepFunc(*this, dt);
 
     m_collisionDetect->clear();
     if (m_collisionsEnabled) {
         m_collisionDetect->detectCollisions();
         m_collisionDetect->computeContactJacobians();
+
+        // — geometric-stiffness damping pass ————————————————
+        if (m_enableGSDamping) {
+            // zero out per-body accumulators
+            for (auto b : m_bodies) {
+                b->gsSum.setZero();
+            }
+            // accumulate from joints
+            for (auto j : m_joints) {
+                j->computeGeometricStiffness();
+                j->body0->gsSum += j->G0;
+                j->body1->gsSum += j->G1;
+            }
+            // accumulate from contacts
+            auto& ctrs = m_collisionDetect->getContacts();
+            for (auto c : ctrs) {
+                c->computeGeometricStiffness();
+                c->body0->gsSum += c->G0;
+                c->body1->gsSum += c->G1;
+            }
+            // convert to damping and update each body’s inertia
+            for (auto b : m_bodies) {
+                if (b->fixed) continue;
+                // for each rotational axis (3..5) we compute a damping entry
+                Eigen::Vector3f alphaDamp;
+                for (int i = 0; i < 3; ++i) {
+                    float k = b->gsSum.col(i+3).norm();
+                    // simple linear rule: α * k
+                    alphaDamp[i] = m_gsAlpha * k;
+                }
+                b->gsDamp = alphaDamp;
+                b->updateInertiaMatrix();
+            }
+        }
     }
 
     // Apply graph coloring if enabled

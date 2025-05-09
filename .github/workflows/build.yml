@@ -44,7 +44,7 @@ jobs:
       - name: Setup CMake
         uses: jwlawson/actions-setup-cmake@v1.14
         with:
-          cmake-version: '3.23.6'
+          cmake-version: '3.23'
 
       # Note: Using seanmiddleditch/gha-setup-ninja instead of actions/setup-ninja
       - name: Setup Ninja

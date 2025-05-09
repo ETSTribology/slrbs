@@ -1,58 +1,44 @@
 #pragma once
 
-#include <Eigen/Dense>
 #include <vector>
+#include <Eigen/Dense>
+#include <memory>
 
 class Contact;
 class RigidBody;
 class RigidBodySystem;
 
-//
-// The main collision detection class,
-// it will test the geometries of each pair of rigid bodies
-// and populate an array with contacts.
-//
 class CollisionDetect
 {
 public:
-
-    // Constructor.
-    //
     CollisionDetect(RigidBodySystem* rigidBodySystem);
 
-    // Tests for collisions between all pairs of bodies in the rigid body system
-    // and generates contacts for any intersecting geometries.
-    // The array of generated contacts can be retrieved by calling getContacts().
-    //
+    // Detect all collisions between rigid bodies in the system
     void detectCollisions();
 
-    void clear();
-
-    // Compute the Jacobians for contacts.
+    // Compute contact Jacobians for all detected contacts
     void computeContactJacobians();
 
-    // Returns all contacts following the current collision detection pass (read-only).
-    const std::vector<Contact*>& getContacts() const { return m_contacts; }
+    // Clear all contacts
+    void clear();
 
-    // Returns all contacts following the current collision detection pass.
+    // Access the list of detected contacts
+    const std::vector<Contact*>& getContacts() const { return m_contacts; }
     std::vector<Contact*>& getContacts() { return m_contacts; }
 
 private:
+    // Helper method to find the closest face to a contact point
+    int findFaceForContact(RigidBody* body, const Eigen::Vector3f& worldPoint);
 
-    // Sphere-sphere collision test.
-    // Assumes that both @a body0 and @a body1 have a sphere collision geometry.
-    //
+    // Collision detection methods for different geometry combinations
     void collisionDetectSphereSphere(RigidBody* body0, RigidBody* body1);
-
-    // Sphere-box collision test.
     void collisionDetectSphereBox(RigidBody* body0, RigidBody* body1);
-
-    // Cylinder-plane collision test
     void collisionDetectCylinderPlane(RigidBody* body0, RigidBody* body1);
+    void collisionDetectBoxBox(RigidBody* body0, RigidBody* body1);
 
-private:
+    // The rigid body system containing all bodies
+    RigidBodySystem* m_rigidBodySystem;
 
-    RigidBodySystem* m_rigidBodySystem;                 // The rigid body system.
-    std::vector<Contact*> m_contacts;                   // Cached array of contacts.
-
+    // List of detected contacts
+    std::vector<Contact*> m_contacts;
 };

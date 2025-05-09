@@ -17,6 +17,8 @@ public:
 
     std::string getTypeName() const override { return "Spherical"; }
 
+    virtual void computeGeometricStiffness() override;
+
 protected:
     // Default constructor (hidden).
     Spherical();

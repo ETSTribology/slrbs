@@ -1,190 +1,59 @@
 {
     "name": "RopeBridge",
-    "description": "Rope bridge constructed with boxes connected by spherical joints",
+    "description": "Rope bridge constructed from transparent planks connected by spherical joints",
     "version": 1.0,
     "bodies": [
         {
             "id": 0,
             "mass": 1.0,
             "fixed": true,
-            "position": {
-                "x": -6.0,
-                "y": 3.0,
-                "z": 0.0
-            },
-            "orientation": {
-                "w": 1.0,
-                "x": 0.0,
-                "y": 0.0,
-                "z": 0.0
-            },
+            "position": { "x": -6.0, "y": 3.0, "z": 0.0 },
+            "orientation": { "w": 1.0, "x": 0.0, "y": 0.0, "z": 0.0 },
             "geometry": {
                 "type": "box",
-                "dimensions": {
-                    "x": 0.5,
-                    "y": 0.1,
-                    "z": 1.0
-                }
+                "dimensions": { "x": 0.5, "y": 0.2, "z": 1.0 }
             },
             "visual": {
-                "color": {
-                    "r": 1.0,
-                    "g": 1.0,
-                    "b": 0.1
-                },
+                "color": { "r": 0.6, "g": 0.6, "b": 0.6 },
                 "transparency": 1.0,
-                "smooth_shade": true,
+                "smooth_shade": false,
                 "edge_width": 1.0
             }
         },
+        { "id": 1, "mass": 1.0, "fixed": false, "position": { "x": -4.0, "y": 3.0, "z": 0.0 }, "orientation": { "w": 1.0, "x": 0, "y": 0, "z": 0 }, "geometry": { "type": "box", "dimensions": { "x": 2.0, "y": 0.2, "z": 1.0 } }, "visual": { "color": { "r": 0.8, "g": 0.2, "b": 0.2 }, "transparency": 1.0, "smooth_shade": true, "edge_width": 1.0 } },
+        { "id": 2, "mass": 1.0, "fixed": false, "position": { "x": -2.0, "y": 3.0, "z": 0.0 }, "orientation": { "w": 1.0, "x": 0, "y": 0, "z": 0 }, "geometry": { "type": "box", "dimensions": { "x": 2.0, "y": 0.2, "z": 1.0 } }, "visual": { "color": { "r": 0.8, "g": 0.2, "b": 0.2 }, "transparency": 1.0, "smooth_shade": true, "edge_width": 1.0 } },
+        { "id": 3, "mass": 1.0, "fixed": false, "position": { "x":  0.0, "y": 3.0, "z": 0.0 }, "orientation": { "w": 1.0, "x": 0, "y": 0, "z": 0 }, "geometry": { "type": "box", "dimensions": { "x": 2.0, "y": 0.2, "z": 1.0 } }, "visual": { "color": { "r": 0.8, "g": 0.2, "b": 0.2 }, "transparency": 1.0, "smooth_shade": true, "edge_width": 1.0 } },
+        { "id": 4, "mass": 1.0, "fixed": false, "position": { "x":  2.0, "y": 3.0, "z": 0.0 }, "orientation": { "w": 1.0, "x": 0, "y": 0, "z": 0 }, "geometry": { "type": "box", "dimensions": { "x": 2.0, "y": 0.2, "z": 1.0 } }, "visual": { "color": { "r": 0.8, "g": 0.2, "b": 0.2 }, "transparency": 1.0, "smooth_shade": true, "edge_width": 1.0 } },
+        { "id": 5, "mass": 1.0, "fixed": false, "position": { "x":  4.0, "y": 3.0, "z": 0.0 }, "orientation": { "w": 1.0, "x": 0, "y": 0, "z": 0 }, "geometry": { "type": "box", "dimensions": { "x": 2.0, "y": 0.2, "z": 1.0 } }, "visual": { "color": { "r": 0.8, "g": 0.2, "b": 0.2 }, "transparency": 1.0, "smooth_shade": true, "edge_width": 1.0 } },
         {
-            "id": 20,
+            "id": 6,
             "mass": 1.0,
             "fixed": true,
-            "position": {
-                "x": 6.0,
-                "y": 3.0,
-                "z": 0.0
-            },
-            "orientation": {
-                "w": 1.0,
-                "x": 0.0,
-                "y": 0.0,
-                "z": 0.0
-            },
+            "position": { "x": 6.0, "y": 3.0, "z": 0.0 },
+            "orientation": { "w": 1.0, "x": 0.0, "y": 0.0, "z": 0.0 },
             "geometry": {
                 "type": "box",
-                "dimensions": {
-                    "x": 0.5,
-                    "y": 0.1,
-                    "z": 1.0
-                }
+                "dimensions": { "x": 0.5, "y": 0.2, "z": 1.0 }
             },
             "visual": {
-                "color": {
-                    "r": 1.0,
-                    "g": 1.0,
-                    "b": 0.1
-                },
+                "color": { "r": 0.6, "g": 0.6, "b": 0.6 },
                 "transparency": 1.0,
-                "smooth_shade": true,
-                "edge_width": 0.0
-            }
-        },
-        {
-            "id": 21,
-            "mass": 1000.0,
-            "fixed": false,
-            "position": {
-                "x": -6.0,
-                "y": 4.0,
-                "z": 0.0
-            },
-            "orientation": {
-                "w": 1.0,
-                "x": 0.0,
-                "y": 0.0,
-                "z": 0.0
-            },
-            "linear_velocity": {
-                "x": 1.0,
-                "y": 0.0,
-                "z": 0.0
-            },
-            "angular_velocity": {
-                "x": 0.0,
-                "y": 0.0,
-                "z": -5.0
-            },
-            "geometry": {
-                "type": "sphere",
-                "radius": 0.5
-            },
-            "visual": {
-                "color": {
-                    "r": 0.1,
-                    "g": 1.0,
-                    "b": 0.2
-                },
-                "transparency": 0.8,
-                "smooth_shade": true,
-                "edge_width": 0.0
+                "smooth_shade": false,
+                "edge_width": 1.0
             }
         }
     ],
     "joints": [
-        {
-            "id": 0,
-            "type": "spherical",
-            "body0_id": 0,
-            "body1_id": 1,
-            "body0_offset": {
-                "x": 0.3,
-                "y": 0.0,
-                "z": 0.5
-            },
-            "body1_offset": {
-                "x": -0.3,
-                "y": 0.0,
-                "z": 0.5
-            }
-        },
-        {
-            "id": 1,
-            "type": "spherical",
-            "body0_id": 0,
-            "body1_id": 1,
-            "body0_offset": {
-                "x": 0.3,
-                "y": 0.0,
-                "z": -0.5
-            },
-            "body1_offset": {
-                "x": -0.3,
-                "y": 0.0,
-                "z": -0.5
-            }
-        },
-        {
-            "id": 2,
-            "type": "spherical",
-            "body0_id": 1,
-            "body1_id": 2,
-            "body0_offset": {
-                "x": 0.3,
-                "y": 0.0,
-                "z": 0.5
-            },
-            "body1_offset": {
-                "x": -0.3,
-                "y": 0.0,
-                "z": 0.5
-            }
-        },
-        {
-            "id": 3,
-            "type": "spherical",
-            "body0_id": 1,
-            "body1_id": 2,
-            "body0_offset": {
-                "x": 0.3,
-                "y": 0.0,
-                "z": -0.5
-            },
-            "body1_offset": {
-                "x": -0.3,
-                "y": 0.0,
-                "z": -0.5
-            }
-        }
+        { "id": 0, "type": "spherical", "body0_id": 0, "body1_id": 1, "body0_offset": { "x":  0.25, "y": 0.0, "z": 0.0 }, "body1_offset": { "x": -1.0, "y": 0.0, "z": 0.0 } },
+        { "id": 1, "type": "spherical", "body0_id": 1, "body1_id": 2, "body0_offset": { "x":  1.0, "y": 0.0, "z": 0.0 }, "body1_offset": { "x": -1.0, "y": 0.0, "z": 0.0 } },
+        { "id": 2, "type": "spherical", "body0_id": 2, "body1_id": 3, "body0_offset": { "x":  1.0, "y": 0.0, "z": 0.0 }, "body1_offset": { "x": -1.0, "y": 0.0, "z": 0.0 } },
+        { "id": 3, "type": "spherical", "body0_id": 3, "body1_id": 4, "body0_offset": { "x":  1.0, "y": 0.0, "z": 0.0 }, "body1_offset": { "x": -1.0, "y": 0.0, "z": 0.0 } },
+        { "id": 4, "type": "spherical", "body0_id": 4, "body1_id": 5, "body0_offset": { "x":  1.0, "y": 0.0, "z": 0.0 }, "body1_offset": { "x": -1.0, "y": 0.0, "z": 0.0 } },
+        { "id": 5, "type": "spherical", "body0_id": 5, "body1_id": 6, "body0_offset": { "x":  1.0, "y": 0.0, "z": 0.0 }, "body1_offset": { "x": -0.25, "y": 0.0, "z": 0.0 } }
     ],
     "physics": {
-        "gravity": {
-            "x": 0.0,
-            "y": -9.81,
-            "z": 0.0
-        },
+        "gravity": { "x": 0.0, "y": -9.81, "z": 0.0 },
         "time_step": 0.01,
-        "solver_iterations": 10
+        "solver_iterations": 20
     }
 }

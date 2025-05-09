@@ -62,7 +62,7 @@
                     "g": 1.0,
                     "b": 0.2
                 },
-                "transparency": 0.8,
+                "transparency": 1.0,
                 "smooth_shade": true,
                 "edge_width": 0.0
             }

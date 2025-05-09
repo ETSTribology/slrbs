@@ -14,6 +14,7 @@
 #include <functional>
 
 #include "contact/Contact.h"
+#include "contact/FaceContactTracker.h"
 #include "rigidbody/RigidBodySystem.h"
 #include "rigidbody/RigidBodyState.h"
 #include "rigidbody/Scenarios.h"
@@ -91,6 +92,19 @@ namespace
         }
     }
 
+    static float computeKineticEnergy(RigidBodySystem& _rigidBodySystem)
+    {
+        float kinEnergy = 0.0f;
+        for (RigidBody* b : _rigidBodySystem.getBodies())
+        {
+            const auto I = b->q * b->Ibody * b->q.inverse();
+            kinEnergy += b->mass * b->xdot.squaredNorm();
+            kinEnergy += b->omega.dot(I * b->omega);
+        }
+
+        return 0.5f*kinEnergy;
+    }
+
     static void updateContactPoints(RigidBodySystem& _rigidBodySystem)
     {
         const auto& contacts    = _rigidBodySystem.getContacts();
@@ -150,15 +164,19 @@ namespace
 }
 
 SimViewer::SimViewer()
- : m_dt(0.01f), m_subSteps(1), m_dynamicsTime(0.0f),
+
+: m_adaptiveTimesteps(false),
+   m_gsDamping(false),
+   m_alpha(0.01f),m_dt(0.01667f), m_subSteps(1), m_dynamicsTime(0.0f), m_frameCounter(0), m_kineticEnergy(0.0f), m_constraintErr(0.0f),
    m_paused(true), m_stepOnce(false),
    m_enableCollisions(true), m_enableScreenshots(false),
    m_drawContacts(true), m_drawConstraints(true),
-   m_selectedScenario(-1), m_selectedBodyIndex(-1)
+   m_selectedScenario(-1), m_selectedBodyIndex(-1), m_showContactHits(true)
 {
     m_resetState = make_unique<RigidBodySystemState>(*m_rigidBodySystem);
     refreshScenariosList();
     reset();
+    FaceContactTracker::initialize();
 }
 
 SimViewer::~SimViewer() = default;
@@ -170,6 +188,14 @@ void SimViewer::reset()
     m_dynamicsTime = 0.0f;
     updateRigidBodyMeshes(*m_rigidBodySystem);
     polyscope::resetScreenshotIndex();
+
+    // Reset face contact tracking
+    FaceContactTracker::reset();
+
+    // Initialize tracking for all bodies
+    for (auto* body : m_rigidBodySystem->getBodies()) {
+        FaceContactTracker::initializeForBody(body);
+    }
 }
 
 void SimViewer::save()
@@ -205,9 +231,11 @@ void SimViewer::start()
       std::bind(&SimViewer::draw, this);
 
     m_rigidBodySystem->setPreStepFunc(
-        [this](std::vector<RigidBody*>& bodies) {
-            this->preStep(bodies);
-        });
+    [this](RigidBodySystem& system, float h) {
+        this->preStep(system, h);
+    });
+
+
 
     polyscope::show();
 }
@@ -287,6 +315,10 @@ void SimViewer::drawGUI()
         ImGui::Checkbox("Draw contacts", &m_drawContacts);
         ImGui::Checkbox("Draw constraints", &m_drawConstraints);
         ImGui::Checkbox("Enable screenshots", &m_enableScreenshots);
+        ImGui::Checkbox("Adaptive timesteps", &m_adaptiveTimesteps);
+        ImGui::Checkbox("GS damping", &m_gsDamping);
+        ImGui::Checkbox("Show contact hits", &m_showContactHits);
+        FaceContactTracker::setVisualizationEnabled(m_showContactHits);
     }
     ImGui::End();
 
@@ -372,6 +404,8 @@ void SimViewer::drawGUI()
             ImGui::SameLine();
             if (ImGui::Button("Cylinder on plane", ImVec2(150,0))) createCylinderOnPlane();
             if (ImGui::Button("Create car scene",     ImVec2(150,0))) createCarScene();
+            if (ImGui::Button("Stack", ImVec2(150,0))) createStack();
+
         }
         drawScenarioSelectionGUI();
     }
@@ -557,6 +591,8 @@ void SimViewer::drawGUI()
     // Performance window
     ImGui::Begin("Performance", nullptr, ImGuiWindowFlags_AlwaysAutoResize);
     {
+        ImGui::Text("Kinetic energy: %8.3f ", m_kineticEnergy);
+        ImGui::Text("Constraint error: %6.6f ", m_constraintErr);
         ImGui::Text("Physics step time: %.3f ms", m_dynamicsTime);
         static float fpsVals[120]={};
         static int   fpsOff=0;
@@ -588,33 +624,84 @@ void SimViewer::drawGUI()
     ImGui::End();
 }
 
-void SimViewer::draw()
-{
+// Improved SimViewer::draw with refactored substepping and geometry stiffness handling
+void SimViewer::draw() {
     drawGUI();
-    if (!m_paused || m_stepOnce)
-    {
-        auto t0 = chrono::high_resolution_clock::now();
-        float dtSub = m_dt / float(m_subSteps);
-        for (int i = 0; i < m_subSteps; ++i)
-            m_rigidBodySystem->step(dtSub);
-        auto t1 = chrono::high_resolution_clock::now();
+    if (m_paused && !m_stepOnce) return;
+    auto t0 = chrono::high_resolution_clock::now();
 
-        updateRigidBodyMeshes(*m_rigidBodySystem);
-        if (m_drawContacts)    updateContactPoints(*m_rigidBodySystem);
-        else polyscope::removePointCloud(strContacts);
+    // Gather bodies, joints, contacts once
+    auto& bodies   = m_rigidBodySystem->getBodies();
+    auto& joints   = m_rigidBodySystem->getJoints();
+    auto& contacts = m_rigidBodySystem->getContacts();
 
-        if (m_drawConstraints) updateJointViz(*m_rigidBodySystem);
-        else {
-            polyscope::removePointCloud(strJointPoints);
-            polyscope::removeCurveNetwork(strJointCurve);
+    // 1) Adaptive substepping based on geometric stiffness (CFL condition)
+    if (m_adaptiveTimesteps) {
+        // Zero accumulated stiffness
+        for (auto* b : bodies) b->gsSum.setZero();
+        // Accumulate stiffness from joints and contacts
+        auto accumulateGs = [&](auto* element) {
+            element->computeGeometricStiffness();
+            element->body0->gsSum += element->G0;
+            element->body1->gsSum += element->G1;
+        };
+        for (auto* j : joints)   accumulateGs(j);
+        for (auto* c : contacts) accumulateGs(c);
+
+        // Compute maximum stiffness-to-mass/inertia ratio
+        float maxRatio = 0.0f;
+        for (auto* b : bodies) {
+            if (b->fixed) continue;
+            // translational
+            float massInv = 1.0f / b->mass;
+            for (int i = 0; i < 3; ++i) {
+                maxRatio = max(maxRatio, 2.0f * b->gsSum.col(i).norm() * massInv);
+            }
+            // rotational
+            Eigen::Matrix3f Iworld = b->q * b->Ibody * b->q.inverse();
+            for (int i = 0; i < 3; ++i) {
+                maxRatio = max(maxRatio, 2.0f * b->gsSum.col(i+3).norm() / Iworld(i,i));
+            }
         }
-
-        m_dynamicsTime = chrono::duration_cast<chrono::microseconds>(t1-t0).count() * 1e-3f;
-        if (m_enableScreenshots)
-            polyscope::screenshot(false);
-
-        m_stepOnce = false;
+        if (maxRatio > 1e-6f) {
+            float dtCFL = 2.0f * m_alpha * sqrtf(1.0f / maxRatio);
+            m_subSteps = clamp((int)ceil(m_dt / dtCFL), 1, 1000);
+        }
     }
+
+    // 2) Integrate in sub-steps
+    float dtSub = m_dt / float(m_subSteps);
+    for (int i = 0; i < m_subSteps; ++i) {
+        m_rigidBodySystem->step(dtSub);
+    }
+
+    // 3) Visualization update
+    updateRigidBodyMeshes(*m_rigidBodySystem);
+    if (m_showContactHits) {
+        FaceContactTracker::updateVisualization(m_rigidBodySystem);
+    }
+    if (m_drawContacts) updateContactPoints(*m_rigidBodySystem);
+    else polyscope::removePointCloud(strContacts);
+
+    if (m_drawConstraints) updateJointViz(*m_rigidBodySystem);
+    else {
+        polyscope::removePointCloud(strJointPoints);
+        polyscope::removeCurveNetwork(strJointCurve);
+    }
+
+    // 4) Record dynamics time and optionally screenshot
+    auto t1 = chrono::high_resolution_clock::now();
+    m_dynamicsTime = chrono::duration<float, milli>(t1 - t0).count();
+    if (m_enableScreenshots) polyscope::screenshot(false);
+
+        // 5) Update diagnostics
+    m_kineticEnergy = computeKineticEnergy(*m_rigidBodySystem);
+    m_constraintErr = 0.0f;
+    for (auto* j : m_rigidBodySystem->getJoints()) {
+        m_constraintErr += j->phi.lpNorm<1>();
+    }
+
+    m_stepOnce = false;
 }
 
 void SimViewer::createMarbleBox()
@@ -682,73 +769,81 @@ void SimViewer::createCarScene()
     polyscope::resetScreenshotIndex();
 }
 
-void SimViewer::preStep(vector<RigidBody*>& _bodies)
+void SimViewer::createStack()
 {
-    (void)_bodies;
+    polyscope::removeAllStructures();
+    g_visualProperties.clear();
+    for (auto* body : m_rigidBodySystem->getBodies()) {
+        body->visualProperties.clear();
+    }
+    Scenarios::createStack(*m_rigidBodySystem);
+    m_resetState->save(*m_rigidBodySystem);
+    updateRigidBodyMeshes(*m_rigidBodySystem);
+    polyscope::resetScreenshotIndex();
 }
+
+void SimViewer::preStep(RigidBodySystem& system, float h) {
+    auto& bodies   = system.getBodies();
+    auto& joints   = system.getJoints();
+    auto& contacts = system.getContacts();
+
+    // 1) Reset all geometric‐stiffness accumulators and damping
+    for (auto* b : bodies) {
+        b->clearGeometricStiffness();
+        b->gsDamp.setZero();
+    }
+
+    // 2) Accumulate geometric stiffness from joints & contacts (if enabled)
+    if (m_gsDamping) {
+        auto accumulateGs = [&](auto* elm) {
+            elm->computeGeometricStiffness();
+            elm->body0->addGeometricStiffness(elm->G0);
+            elm->body1->addGeometricStiffness(elm->G1);
+        };
+        for (auto* j : joints)   accumulateGs(j);
+        for (auto* c : contacts) accumulateGs(c);
+    }
+
+    // 3) Adaptive timestep (CFL‐style) based on max stiffness‐to‐mass/inertia
+    if (m_adaptiveTimesteps) {
+        float maxRatio = 0.0f, minMass = FLT_MAX;
+        for (auto* b : bodies) {
+            if (b->fixed) continue;
+            minMass = std::min(minMass, b->mass);
+        }
+        if (minMass < FLT_MAX) {
+            for (auto* b : bodies) {
+                if (b->fixed) continue;
+                // translational modes
+                float invM = 1.0f / b->mass;
+                for (int i = 0; i < 3; ++i) {
+                    maxRatio = std::max(maxRatio, 2.0f * b->gsSum.col(i).norm() * invM);
+                }
+                // rotational modes
+                Eigen::Matrix3f Iw = b->q * b->Ibody * b->q.inverse();
+                for (int i = 0; i < 3; ++i) {
+                    maxRatio = std::max(maxRatio, 2.0f * b->gsSum.col(i+3).norm() / Iw(i,i));
+                }
+            }
+            if (maxRatio > 1e-6f) {
+                float dtCFL = 2.0f * m_alpha * std::sqrt(1.0f / maxRatio);
+                // clamp substeps to avoid runaway
+                m_subSteps = std::clamp((int)std::ceil(m_dt / dtCFL), 1, 1000);
+            }
+        }
+    }
+
+    // 4) Fold geometric‐stiffness into each body's inertia before the solver
+    for (auto* b : bodies) {
+        if (!b->fixed) {
+            b->updateInertiaMatrixWithGs(h);
+        }
+    }
+}
+
 
 void SimViewer::drawColorDebugUI()
 {
-    if (!ImGui::CollapsingHeader("Color Debug", ImGuiTreeNodeFlags_DefaultOpen))
-        return;
-    const auto& bodies = m_rigidBodySystem->getBodies();
-    if (bodies.empty())
-    {
-        ImGui::Text("No bodies in scene");
-        return;
-    }
-    static int sel=0;
-    sel = min(sel, (int)bodies.size()-1);
-    vector<const char*> labels;
-    for (size_t i=0;i<bodies.size();++i)
-    {
-        static char buf[32];
-        sprintf(buf,"Body %zu",i);
-        labels.push_back(buf);
-    }
-    ImGui::Combo("Select Body",&sel,labels.data(),labels.size());
-
-    auto* body = bodies[sel];
-    if (!body->mesh)
-    {
-        ImGui::Text("Selected body has no mesh");
-        return;
-    }
-
-    static float col[3]={0.5f,0.5f,0.5f};
-    static float tr=1.0f;
-    static bool  ss=true;
-    static float ew=1.0f;
-
-    if (body->visualProperties.count("colorR"))
-    {
-        col[0]=body->visualProperties["colorR"];
-        col[1]=body->visualProperties["colorG"];
-        col[2]=body->visualProperties["colorB"];
-    }
-    if (body->visualProperties.count("transparency"))
-        tr = body->visualProperties["transparency"];
-    if (body->visualProperties.count("smoothShade"))
-        ss = (body->visualProperties["smoothShade"]>0.5f);
-    if (body->visualProperties.count("edgeWidth"))
-        ew = body->visualProperties["edgeWidth"];
-
-    bool changed = false;
-    changed |= ImGui::ColorEdit3("Color", col);
-    changed |= ImGui::SliderFloat("Transparency",&tr,0,1);
-    changed |= ImGui::Checkbox("Smooth Shading",&ss);
-    changed |= ImGui::SliderFloat("Edge Width",&ew,0.1f,3.0f);
-
-    if (changed)
-    {
-        body->visualProperties["colorR"]=col[0];
-        body->visualProperties["colorG"]=col[1];
-        body->visualProperties["colorB"]=col[2];
-        body->visualProperties["transparency"]=tr;
-        body->visualProperties["smoothShade"]= ss?1.0f:0.0f;
-        body->visualProperties["edgeWidth"]=ew;
-        body->applyVisualProperties();
-    }
 
     if (ImGui::Button("Reset to Default"))
     {

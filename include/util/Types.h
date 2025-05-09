@@ -18,3 +18,4 @@ namespace Eigen
 
 typedef Eigen::Matrix<float, Eigen::Dynamic, 6, Eigen::RowMajor> JBlock;
 typedef Eigen::Matrix<float, 6, Eigen::Dynamic, Eigen::ColMajor> JBlockTranspose;
+typedef Eigen::Matrix<float, 6, 6> GBlock;

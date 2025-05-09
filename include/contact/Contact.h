@@ -3,54 +3,72 @@
 #include "joint/Joint.h"
 #include <Eigen/Dense>
 
-// Forward declarations
 class RigidBody;
 
+// Contact class: models frictional contact constraint with a boxed LCP
 class Contact : public Joint
 {
 public:
+    // Default constructor
     Contact();
-    Contact(RigidBody* body0, RigidBody* body1, const Eigen::Vector3f& p, const Eigen::Vector3f& n, float pene);
+
+    // Main constructor
+    Contact(RigidBody* b0, RigidBody* b1,
+            const Eigen::Vector3f& contactPoint,
+            const Eigen::Vector3f& normal,
+            float penetration);
+
+    // Destructor
     virtual ~Contact();
 
-    virtual void computeJacobian() override;
+    // Implement required Joint virtual functions
     virtual eConstraintType getType() const override { return kContact; }
+    virtual std::string getTypeName() const override { return "Contact"; }
 
-    // Warmstart the contact with previous solution
-    void warmStart();
+    // Set face indices for contact visualization after construction
+    void setFaceIndices(int face0, int face1);
 
-    // Reset contact accumulators
-    void reset();
-
+    // Compute contact frame (tangent, bitangent)
     void computeContactFrame();
 
+    // Compute Jacobian for this contact
+    virtual void computeJacobian() override;
+
+    // Compute geometric stiffness
+    virtual void computeGeometricStiffness() override;
+
+    // Warm start constraint (use previous lambda)
+    void warmStart();
+
+    // Reset constraint state
+    void reset();
+
+    // Contact state
+    Eigen::Vector3f p;                // Contact point location
+    Eigen::Vector3f n;                // Contact normal
+    Eigen::Vector3f t;                // Contact tangent
+    Eigen::Vector3f b;                // Contact bitangent
+    float pene;                       // Penetration depth
+    Eigen::Vector3f relVel;           // Relative velocity at contact
+
+    // Face indices for visualization
+    int faceIndex0;                   // Face index on body0 (-1 if not applicable)
+    int faceIndex1;                   // Face index on body1 (-1 if not applicable)
+
     // Contact parameters
-    Eigen::Vector3f p;     // Contact point
-    Eigen::Vector3f n;     // Contact normal
-    Eigen::Vector3f t;     // First tangent direction
-    Eigen::Vector3f b;     // Second tangent direction (bitangent)
-    float pene;            // Penetration depth
+    float restitution;                // Coefficient of restitution
+    float bias;                       // Baumgarte stabilization factor
+    bool persistent;                  // Persistent contact flag
 
-    // Relative velocity at contact point
-    Eigen::Vector3f relVel;
+    // Cached values
+    Eigen::Vector3f prevLambda;       // Previous impulse (for warm starting)
+    float k;                          // Constraint stiffness
 
-    // Contact properties
-    float restitution;     // Coefficient of restitution (bounciness)
-    float bias;            // Baumgarte stabilization term
-    bool persistent;       // Whether this contact persisted from last frame
-
-    // Previous frame lambda for warmstarting
-    Eigen::Vector3f prevLambda;
-
-    // Friction coefficient
-    static float mu;
-    // Restitution threshold - minimum normal velocity for bounce
+    // Static members for contact parameters
+    static float mu;                  // Friction coefficient
     static float restitutionThreshold;
-    // Baumgarte stabilization factor
-    static float baumgarte;
-    // Slop factor for penetration depth
-    static float slop;
-    float k;  // constraint spring stiffness (mixing)
+    static float baumgarte;           // Baumgarte stabilization factor
+    static float slop;                // Contact slop factor
 
     using JBlock          = Eigen::Matrix<float,3,6>;
     using JBlockTranspose = Eigen::Matrix<float,6,3>;

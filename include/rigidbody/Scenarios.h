@@ -247,4 +247,126 @@ public:
         rigidBodySystem.addJoint(rrhinge);
     }
 
+    static void createStack(RigidBodySystem& rigidBodySystem)
+    {
+        rigidBodySystem.clear();
+        polyscope::removeAllStructures();
+
+        std::cout << "Loading stack scenario." << std::endl;
+
+        // Create a box that will act as the ground.
+        RigidBody* bodyBox = new RigidBody(1.0f, new Box(Eigen::Vector3f(10.0f, 1.0f, 10.0f)), createBox(Eigen::Vector3f(10, 1.0f, 10)));
+        bodyBox->fixed = true;
+        bodyBox->mesh->setSurfaceColor({ 0.2f, 0.2f, 0.2f })->setSmoothShade(false)->setTransparency(0.4f);
+        bodyBox->mesh->setEdgeWidth(0.0f);
+
+        rigidBodySystem.addBody(bodyBox);
+
+        const int N = 4;
+        for (int i = 1; i <= N; i++)
+        {
+            RigidBody* body1 = new RigidBody(1.0f, new Sphere(0.5f), createSphere(0.5f));
+            body1->x = { -4.0f, 1.5f * i - 0.5f, -4.0f };
+            rigidBodySystem.addBody(body1);
+            body1->mesh->setSurfaceColor({ 0.1f, 1.0f, 0.2f })->setEdgeWidth(0.0f);
+            body1->mesh->setTransparency(0.8f);
+            body1->mesh->setSmoothShade(true);
+
+            RigidBody* body2 = new RigidBody(1.0f, new Sphere(0.5f), createSphere(0.5f));
+            body2->x = { 4.0f, 1.5f * i - 0.5f, -4.0f };
+            rigidBodySystem.addBody(body2);
+            body2->mesh->setSurfaceColor({ 0.1f, 1.0f, 0.2f })->setEdgeWidth(0.0f);
+            body2->mesh->setTransparency(0.8f);
+            body2->mesh->setSmoothShade(true);
+
+            RigidBody* body3 = new RigidBody(1.0f, new Sphere(0.5f), createSphere(0.5f));
+            body3->x = { -4.0f, 1.5f * i - 0.5f, 4.0f };
+            rigidBodySystem.addBody(body3);
+            body3->mesh->setSurfaceColor({ 0.1f, 1.0f, 0.2f })->setEdgeWidth(0.0f);
+            body3->mesh->setTransparency(0.8f);
+            body3->mesh->setSmoothShade(true);
+
+            RigidBody* body4 = new RigidBody(1.0f, new Sphere(0.5f), createSphere(0.5f));
+            body4->x = { 4.0f, 1.5f * i - 0.5f, 4.0f };
+            rigidBodySystem.addBody(body4);
+            body4->mesh->setSurfaceColor({ 0.1f, 1.0f, 0.2f })->setEdgeWidth(0.0f);
+            body4->mesh->setTransparency(0.8f);
+            body4->mesh->setSmoothShade(true);
+
+            if (i < N)
+            {
+                RigidBody* body5 = new RigidBody(1.0f, new Box(Eigen::Vector3f(10.0f, 0.5f, 10.0f)), createBox(Eigen::Vector3f(10, 0.5f, 10)));
+                body5->x = { 0, 1.5f * i + 0.25f, 0 };
+                rigidBodySystem.addBody(body5);
+                body5->mesh->setSurfaceColor({ 1.0f, 0.1f, 0.1f })->setEdgeWidth(0.0f);
+                body5->mesh->setTransparency(0.8f);
+            }
+        }
+
+        RigidBody* topBox = new RigidBody(20000.0f, new Box(Eigen::Vector3f(15.0f, 1.0f, 15.0f)), createBox(Eigen::Vector3f(15.0f, 1.0f, 15.0f)));
+        topBox->x = { 0, 1.5f * N + 0.5f, 0 };
+        rigidBodySystem.addBody(topBox);
+        topBox->mesh->setSurfaceColor({ 0.1f, 0.2f, 1.0f })->setEdgeWidth(0.0f);
+        topBox->mesh->setTransparency(0.8f);
+    }
+
+    static void createRopeBridgeScene(RigidBodySystem& rigidBodySystem)
+    {
+        rigidBodySystem.clear();
+        polyscope::removeAllStructures();
+
+        std::cout << "Loading bridge scenario." << std::endl;
+
+        const int N = 20;
+
+        const float dx = 0.6f;
+        const float y = 3.0f;
+        const float x0 = -(N / 2) * dx;
+        float x = x0;
+        // Create a box.
+        const Eigen::Vector3f dim({ 0.5f, 0.1f, 1.0f });
+        RigidBody* firstBox = new RigidBody(1.0f, new Box(dim), createBox(dim));
+        firstBox->x = { x, y, 0.0f };
+        firstBox->fixed = true;
+        rigidBodySystem.addBody(firstBox);
+        firstBox->mesh->setSurfaceColor({ 1.0f, 1.0f, 0.1f })->setEdgeWidth(0.0f);
+
+        RigidBody* parent = firstBox;
+        for (int i = 0; i < N - 1; ++i)
+        {
+            // Create the next box in the chain.
+            x += dx;
+            RigidBody* nextBox = new RigidBody(1.0f, new Box(dim), createBox(dim));
+            nextBox->x = { x, y, 0.0f };
+            nextBox->mesh->setSurfaceColor({ 0.1f, 0.2f, 1.0f })->setEdgeWidth(0.0f);
+
+            // Add new box
+            rigidBodySystem.addBody(nextBox);
+
+            // Add spherical joints between parent->nextBox
+            Joint* j0 = new Spherical(parent, nextBox, { dx / 2.0f, 0.0f, 0.5f }, { -dx / 2.0f, 0.0f, 0.5f });
+            Joint* j1 = new Spherical(parent, nextBox, { dx / 2.0f, 0.0f, -0.5f }, { -dx / 2.0f, 0.0f, -0.5f });
+
+            // Add spherical joints to the rigid body system.
+            rigidBodySystem.addJoint(j0);
+            rigidBodySystem.addJoint(j1);
+            parent = nextBox;
+        }
+        parent->fixed = true;
+        parent->mesh->setSurfaceColor({ 1.0f, 1.0f, 0.1f });
+
+
+        // Create a sphere.
+        const float radius = 0.5f;
+        RigidBody* bodySphere = new RigidBody(1000.0f, new Sphere(radius), createSphere(radius));
+        bodySphere->x = { x0, y + 1.0f, 0.0f };
+        bodySphere->omega = { 0.0f, 0.0f, -5.0f };
+        bodySphere->xdot = { 1.0f, 0.0f, 0.0f };
+        bodySphere->mesh->setSurfaceColor({ 0.1f, 1.0f, 0.2f })->setEdgeWidth(0.0f)->setTransparency(0.8f);
+        bodySphere->mesh->setSmoothShade(true);
+
+        rigidBodySystem.addBody(bodySphere);
+
+    }
+
 };

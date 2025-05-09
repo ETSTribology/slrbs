@@ -11,27 +11,32 @@ class Contact;
 class Joint;
 struct Mesh;
 
-namespace polyscope
-{
+namespace polyscope {
     class SurfaceMesh;
 }
 
 // Rigid body class.
 // Stores properties for rigid body simulation, including
 // the geometry and list of contact constraints.
-//
-class RigidBody
-{
+// Now includes geometric-stiffness accumulation helpers.
+
+class RigidBody {
 public:
     RigidBody(float _mass, Geometry* _geometry, const std::string& meshFilename = "");
-
     RigidBody(float _mass, Geometry* _geometry, const Mesh& _mesh);
 
     static int counter;
     int id;                             // Unique identifier for the rigid body
 
-
+    // Update inertia (non-geometric)
     void updateInertiaMatrix();
+    // Update inertia including geometric stiffness contributions
+    void updateInertiaMatrixWithGs(float dt);
+
+    // Geometric-stiffness helpers
+    void clearGeometricStiffness();
+    void addGeometricStiffness(const GBlock& G);
+    const GBlock& getAccumulatedGs() const;
 
     // Apply visual properties to the mesh
     void applyVisualProperties();
@@ -67,6 +72,10 @@ public:
 
     polyscope::SurfaceMesh* mesh;       // Used for rendering
     std::map<std::string, float> visualProperties; // Store visual properties
+
+    // Geometric-stiffness damping state
+    GBlock gsSum;                       // Sum of geometric stiffness blocks for this body
+    Eigen::Vector3f gsDamp;             // Damping to add to the moment matrix due to geometric stiffness
 
     // Graph coloring properties
     int color = -1;                     // Color assigned during graph coloring (-1 = uncolored)

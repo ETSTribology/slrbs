@@ -14,6 +14,7 @@ public:
     virtual eConstraintType getType() const override { return kHinge; }
 
     virtual void computeJacobian() override;
+    virtual void computeGeometricStiffness();
 
     std::string getTypeName() const override { return "Hinge"; }
 

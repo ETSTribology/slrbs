@@ -6,13 +6,19 @@
 #include <Eigen/Core>
 #include <Eigen/Geometry>
 
+// Forward declaration for callbacks
+class RigidBodySystem;
+
 class Contact;
 class CollisionDetect;
 class Joint;
 class Solver;
 class RigidBody;
+class RigidBodySystemState;
 
-typedef std::function<void(std::vector<RigidBody*>&)> PreStepFunc;
+// Pre-step callback signature (system reference and timestep)
+typedef std::function<void(RigidBodySystem& system, float dt)> PreStepFunc;
+// Reset callback signature
 typedef std::function<void()> ResetFunc;
 
 // Integration methods for advancing the system state
@@ -70,8 +76,8 @@ public:
     std::vector<Joint*>& getJoints() { return m_joints; }
 
     // Callbacks
-    void setPreStepFunc(PreStepFunc func) { m_preStepFunc = func; }
-    void setResetFunc(ResetFunc func) { m_resetFunc = func; }
+    void setPreStepFunc(PreStepFunc func) { m_preStepFunc = std::move(func); }
+    void setResetFunc(ResetFunc func) { m_resetFunc = std::move(func); }
 
     // Collision toggle
     void setEnableCollisionDetection(bool enable) { m_collisionsEnabled = enable; }
@@ -86,20 +92,16 @@ public:
     const Eigen::Vector3f& getGravity() const { return m_gravity; }
 
     // Solver settings
-    void setSolverType(SolverType type);
-    SolverType getSolverType() const;
+    void setSolverType(SolverType type) { m_solverType = type; }
+    SolverType getSolverType() const { return m_solverType; }
     void setSolverIterations(int iters) { m_solverIter = iters; }
     int getSolverIterations() const { return m_solverIter; }
 
     // Integration method interface
-    void setIntegrationMethod(IntegrationMethod method);
-    IntegrationMethod getIntegrationMethod() const;
-    void setIntegratorType(IntegratorType type) {
-        setIntegrationMethod(static_cast<IntegrationMethod>(type));
-    }
-    IntegratorType getIntegratorType() const {
-        return static_cast<IntegratorType>(getIntegrationMethod());
-    }
+    void setIntegrationMethod(IntegrationMethod method) { m_integrationMethod = method; }
+    IntegrationMethod getIntegrationMethod() const { return m_integrationMethod; }
+    void setIntegratorType(IntegratorType type) { m_integrationMethod = static_cast<IntegrationMethod>(type); }
+    IntegratorType getIntegratorType() const { return static_cast<IntegratorType>(m_integrationMethod); }
 
     // Implicit-Euler parameter controls
     void setImplicitDamping(float d)       { m_implicitDamping = d; }
@@ -137,8 +139,8 @@ private:
     bool m_collisionsEnabled = true;
     bool m_useGraphColoring = true;
     bool m_limitVelocities = true;
-    PreStepFunc m_preStepFunc;
-    ResetFunc m_resetFunc;
+    PreStepFunc m_preStepFunc = nullptr;
+    ResetFunc m_resetFunc = nullptr;
     Eigen::Vector3f m_gravity = {0.0f, -9.81f, 0.0f};
     SolverType m_solverType = SolverType::PGS;
     int m_solverIter = 10;
@@ -149,4 +151,8 @@ private:
     float m_gyroDamping        = 0.20f;
     float m_maxLinearVelocity  = 50.0f;
     float m_maxAngularVelocity = 20.0f;
+
+    // Geometric stiffness damping
+    bool m_enableGSDamping = false;  // enable geometric-stiffness based damping
+    float m_gsAlpha        = 0.0f;   // geometric stiffness coefficient
 };
