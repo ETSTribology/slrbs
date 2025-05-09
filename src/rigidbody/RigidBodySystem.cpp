@@ -6,13 +6,14 @@
 #include "solvers/SolverConjGradient.h"
 #include "solvers/SolverConjResidual.h"
 #include "solvers/SolverPGSSM.h"
+#include "solvers/SolverProximal.h"
 
 #ifdef USE_OPENMP
 # include <omp.h>
 #endif
 
 namespace {
-    static Solver* s_solvers[4] = { nullptr, nullptr, nullptr, nullptr };
+    static Solver* s_solvers[5] = { nullptr, nullptr, nullptr, nullptr, nullptr };
 
     // Graph coloring algorithm for rigid bodies
     void colorRigidBodies(std::vector<RigidBody*>& bodies,
@@ -108,6 +109,7 @@ RigidBodySystem::RigidBodySystem()
     s_solvers[1] = new SolverConjGradient(this);
     s_solvers[2] = new SolverConjResidual(this);
     s_solvers[3] = new SolverPGSSM(this);
+    s_solvers[4] = new SolverProximal(this);
 }
 
 RigidBodySystem::~RigidBodySystem() {

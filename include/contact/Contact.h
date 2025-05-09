@@ -50,4 +50,9 @@ public:
     static float baumgarte;
     // Slop factor for penetration depth
     static float slop;
+    float k;  // constraint spring stiffness (mixing)
+
+    using JBlock          = Eigen::Matrix<float,3,6>;
+    using JBlockTranspose = Eigen::Matrix<float,6,3>;
+    JBlockTranspose MinvJ0T, MinvJ1T;
 };

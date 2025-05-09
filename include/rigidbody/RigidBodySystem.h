@@ -38,7 +38,8 @@ enum class SolverType {
     PGS,
     CONJ_GRADIENT,
     CONJ_RESIDUAL,
-    PGSSM
+    PGSSM,
+    PROXIMAL
 };
 
 class RigidBodySystem

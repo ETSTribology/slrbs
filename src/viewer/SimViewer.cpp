@@ -355,6 +355,7 @@ void SimViewer::drawGUI()
         if (ImGui::RadioButton("Conj Grad", st==SolverType::CONJ_GRADIENT)) m_rigidBodySystem->setSolverType(SolverType::CONJ_GRADIENT);
         ImGui::SameLine();
         if (ImGui::RadioButton("Conj Residual", st==SolverType::CONJ_RESIDUAL)) m_rigidBodySystem->setSolverType(SolverType::CONJ_RESIDUAL);
+        if (ImGui::RadioButton("Proximal", st==SolverType::PROXIMAL)) m_rigidBodySystem->setSolverType(SolverType::PROXIMAL);
     }
     ImGui::PopItemWidth();
     ImGui::End();
@@ -619,6 +620,10 @@ void SimViewer::draw()
 void SimViewer::createMarbleBox()
 {
     polyscope::removeAllStructures();
+    g_visualProperties.clear();
+    for (auto* body : m_rigidBodySystem->getBodies()) {
+        body->visualProperties.clear();
+    }
     Scenarios::createMarbleBox(*m_rigidBodySystem);
     m_resetState->save(*m_rigidBodySystem);
     updateRigidBodyMeshes(*m_rigidBodySystem);
@@ -628,6 +633,10 @@ void SimViewer::createMarbleBox()
 void SimViewer::createSphereOnBox()
 {
     polyscope::removeAllStructures();
+    g_visualProperties.clear();
+    for (auto* body : m_rigidBodySystem->getBodies()) {
+        body->visualProperties.clear();
+    }
     Scenarios::createSphereOnBox(*m_rigidBodySystem);
     m_resetState->save(*m_rigidBodySystem);
     updateRigidBodyMeshes(*m_rigidBodySystem);
@@ -637,6 +646,10 @@ void SimViewer::createSphereOnBox()
 void SimViewer::createSwingingBox()
 {
     polyscope::removeAllStructures();
+    g_visualProperties.clear();
+    for (auto* body : m_rigidBodySystem->getBodies()) {
+        body->visualProperties.clear();
+    }
     Scenarios::createSwingingBoxes(*m_rigidBodySystem);
     m_resetState->save(*m_rigidBodySystem);
     updateRigidBodyMeshes(*m_rigidBodySystem);
@@ -646,6 +659,10 @@ void SimViewer::createSwingingBox()
 void SimViewer::createCylinderOnPlane()
 {
     polyscope::removeAllStructures();
+    g_visualProperties.clear();
+    for (auto* body : m_rigidBodySystem->getBodies()) {
+        body->visualProperties.clear();
+    }
     Scenarios::createCylinderOnPlane(*m_rigidBodySystem);
     m_resetState->save(*m_rigidBodySystem);
     updateRigidBodyMeshes(*m_rigidBodySystem);
@@ -655,6 +672,10 @@ void SimViewer::createCylinderOnPlane()
 void SimViewer::createCarScene()
 {
     polyscope::removeAllStructures();
+    g_visualProperties.clear();
+    for (auto* body : m_rigidBodySystem->getBodies()) {
+        body->visualProperties.clear();
+    }
     Scenarios::createCarScene(*m_rigidBodySystem);
     m_resetState->save(*m_rigidBodySystem);
     updateRigidBodyMeshes(*m_rigidBodySystem);
@@ -731,7 +752,10 @@ void SimViewer::drawColorDebugUI()
 
     if (ImGui::Button("Reset to Default"))
     {
-        body->visualProperties.clear();
+        g_visualProperties.clear();
+        for (auto* body : m_rigidBodySystem->getBodies()) {
+            body->visualProperties.clear();
+        }
         updateRigidBodyMeshes(*m_rigidBodySystem);
     }
 }

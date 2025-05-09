@@ -2,6 +2,7 @@
 
 #include "collision/Geometry.h"
 #include "util/Types.h"
+
 #include <memory>
 #include <vector>
 #include <map>
@@ -28,6 +29,7 @@ public:
 
     static int counter;
     int id;                             // Unique identifier for the rigid body
+
 
     void updateInertiaMatrix();
 

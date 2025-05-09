@@ -1,10 +1,15 @@
 #include "contact/Contact.h"
 #include "rigidbody/RigidBody.h"
 
-float Contact::mu = 0.8f;
+float Contact::mu                   = 0.8f;
+float Contact::restitutionThreshold = 0.5f;
+float Contact::baumgarte            = 0.2f;
+float Contact::slop                  = 0.01f;
 
 Contact::Contact() : Joint(), p(), n(), t(), b(), pene(0.0f)
 {
+    k    = 1.0f;
+    bias = Contact::baumgarte;
     dim = 3;
     lambda.setZero(3);
     phi.setZero(3);
@@ -14,6 +19,8 @@ Contact::Contact(RigidBody* body0, RigidBody* body1, const Eigen::Vector3f& cont
     Joint(body0, body1),
     p(contactPoint), n(normal), t(), b(), pene(penetration)
 {
+    k    = 1.0f;
+    bias = Contact::baumgarte;
     dim = 3;
     J0.setZero(3, 6);
     J1.setZero(3, 6);
@@ -90,4 +97,7 @@ void Contact::computeJacobian()
     J0Minv.block(0,3,3,3) = J0.block(0, 3, 3, 3) * body0->Iinv;
     J1Minv.block(0,0,3,3) = (1.0f/body1->mass) * J1.block(0, 0, 3, 3);
     J1Minv.block(0,3,3,3) = J1.block(0, 3, 3, 3) * body1->Iinv;
+
+    MinvJ0T = J0Minv.transpose();
+    MinvJ1T = J1Minv.transpose();
 }
